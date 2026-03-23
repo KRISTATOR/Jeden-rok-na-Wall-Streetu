@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "GameState": {
+      "title": "GameState",
+      "description": "Global game state containing current quarter and market data.",
+      "type": "object",
+      "properties": {
+        "currentQuarter": { "type": "integer", "description": "The current quarter (0-4)." },
+        "lastEvent": { "type": "string", "description": "The last triggered news event." },
+        "sentiment": { "type": "string", "description": "Market sentiment (Bull/Bear)." }
+      },
+      "required": ["currentQuarter"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "A game room where players can join and trade.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "gameState": { "$ref": "GameState" }
+      },
+      "required": ["id", "name", "createdBy", "createdAt", "gameState"]
+    },
+    "UserPortfolio": {
+      "title": "UserPortfolio",
+      "description": "User's portfolio within a specific room.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "roomId": { "type": "string" },
+        "email": { "type": "string" },
+        "cash": { "type": "number" },
+        "shares": {
+          "type": "object",
+          "properties": {
+            "AAPL": { "type": "integer" },
+            "NVDA": { "type": "integer" },
+            "WMT": { "type": "integer" }
+          }
+        },
+        "passiveFund": { "type": "number" },
+        "isPassiveLocked": { "type": "boolean" }
+      },
+      "required": ["uid", "roomId", "cash", "shares"]
+    }
+  },
+  "firestore": {
+    "/rooms/{roomId}": {
+      "schema": "Room",
+      "description": "The state of a specific game room."
+    },
+    "/rooms/{roomId}/portfolios/{userId}": {
+      "schema": "UserPortfolio",
+      "description": "User portfolios within a specific room."
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "One Year on Wall Street",
+  "description": "A stock market simulation game where you navigate through a year of bull and bear markets with AAPL, NVDA, and WMT.",
+  "requestFramePermissions": []
+}
