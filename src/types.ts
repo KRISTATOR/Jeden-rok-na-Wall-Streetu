@@ -28,6 +28,13 @@ export interface Room {
   gameState: GameState;
 }
 
+export interface Trade {
+  ticker: keyof StockPrices;
+  amount: number;
+  price: number;
+  time: number;
+}
+
 export interface UserPortfolio {
   uid: string;
   roomId: string;
@@ -43,6 +50,7 @@ export interface UserPortfolio {
   isPassiveLocked: boolean;
   isQ3DividendPaid?: boolean;
   isQ4FinalPaid?: boolean;
+  trades?: Trade[];
 }
 
 export const ADMINS = [

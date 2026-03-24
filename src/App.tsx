@@ -28,7 +28,8 @@ import {
   UserPortfolio, 
   StockPrices,
   Room,
-  CandleData
+  CandleData,
+  Trade
 } from './types';
 import { 
   MARKET_SCHEDULE, 
@@ -68,7 +69,8 @@ import {
   Tooltip, 
   ResponsiveContainer,
   Cell,
-  ReferenceLine
+  ReferenceLine,
+  Scatter
 } from 'recharts';
 
 const PRICE_IMPACT = 2.5; // Increased from 0.5 for more noticeable effect
@@ -80,9 +82,10 @@ interface StockChartProps {
   currentPrice: number;
   height?: string;
   isFocusMode?: boolean;
+  trades?: Trade[];
 }
 
-function StockChart({ ticker, currentQuarter, history, currentPrice, height = "h-80", isFocusMode = false }: StockChartProps) {
+function StockChart({ ticker, currentQuarter, history, currentPrice, height = "h-80", isFocusMode = false, trades = [] }: StockChartProps) {
   const data = useMemo(() => {
     const tickerHistory = history[ticker] || [];
     
@@ -95,18 +98,29 @@ function StockChart({ ticker, currentQuarter, history, currentPrice, height = "h
       low: Math.min(lastCandle ? lastCandle.close : 100, currentPrice, lastCandle ? lastCandle.low : currentPrice)
     };
 
+    const tickerTrades = trades.filter(t => t.ticker === ticker);
+
     const allData = [...tickerHistory, liveCandle].map((c, idx) => {
       const isUp = c.close >= c.open;
+      // Find if a trade happened near this candle's time
+      // Since candles are created on trades, we can match them
+      const trade = tickerTrades.find(t => Math.abs(t.time - c.time) < 1000);
+      
       return {
         ...c,
         name: `T${idx}`,
         isUp,
-        bodyRange: [Math.min(c.open, c.close), Math.max(c.open, c.close)]
+        bodyRange: [Math.min(c.open, c.close), Math.max(c.open, c.close)],
+        trade: trade ? {
+          type: trade.amount > 0 ? 'BUY' : 'SELL',
+          amount: Math.abs(trade.amount),
+          price: trade.price
+        } : null
       };
     });
 
     return allData;
-  }, [ticker, history, currentPrice]);
+  }, [ticker, history, currentPrice, trades]);
 
   const lastIsUp = data[data.length - 1]?.isUp;
 
@@ -160,7 +174,7 @@ function StockChart({ ticker, currentQuarter, history, currentPrice, height = "h
                 return (
                   <div className="bg-[#0a0a0a] border border-[#2a2b2e] p-3 shadow-2xl backdrop-blur-md bg-opacity-95 z-50">
                     <p className="text-[9px] text-gray-500 mb-2 font-bold uppercase tracking-widest">Data OHLC</p>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1 mb-2">
                       <span className="text-gray-500 text-[9px]">O</span>
                       <span className="text-white text-[9px] text-right">${d.open.toFixed(2)}</span>
                       <span className="text-gray-500 text-[9px]">H</span>
@@ -170,6 +184,15 @@ function StockChart({ ticker, currentQuarter, history, currentPrice, height = "h
                       <span className="text-gray-500 text-[9px]">C</span>
                       <span className="text-white text-[9px] text-right font-bold">${d.close.toFixed(2)}</span>
                     </div>
+                    {d.trade && (
+                      <div className={cn(
+                        "mt-2 pt-2 border-t border-white/10 flex items-center justify-between gap-4",
+                        d.trade.type === 'BUY' ? "text-[#22c55e]" : "text-[#ef4444]"
+                      )}>
+                        <span className="text-[10px] font-black uppercase tracking-tighter">{d.trade.type}</span>
+                        <span className="text-[10px] font-bold">{d.trade.amount} ks @ ${d.trade.price.toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
                 );
               }
@@ -198,6 +221,40 @@ function StockChart({ ticker, currentQuarter, history, currentPrice, height = "h
             shape={<CandlestickShape />}
             isAnimationActive={false}
           />
+
+          {trades.length > 0 && (
+            <Scatter
+              yAxisId="price"
+              data={data.filter(d => d.trade)}
+              shape={(props: any) => {
+                const { cx, cy, payload } = props;
+                if (!payload.trade) return null;
+                const isBuy = payload.trade.type === 'BUY';
+                return (
+                  <g transform={`translate(${cx},${cy})`}>
+                    <circle 
+                      r={isFocusMode ? 6 : 4} 
+                      fill={isBuy ? "#22c55e" : "#ef4444"} 
+                      stroke="#fff" 
+                      strokeWidth={1} 
+                    />
+                    {isFocusMode && (
+                      <text 
+                        y={isBuy ? -12 : 18} 
+                        textAnchor="middle" 
+                        fill={isBuy ? "#22c55e" : "#ef4444"} 
+                        fontSize={10} 
+                        fontWeight="bold"
+                        className="pointer-events-none"
+                      >
+                        {isBuy ? 'B' : 'S'}
+                      </text>
+                    )}
+                  </g>
+                );
+              }}
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -217,6 +274,10 @@ export default function App() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [focusTicker, setFocusTicker] = useState<keyof StockPrices>('AAPL');
   const [newRoomName, setNewRoomName] = useState("");
+
+  const [isLockingPassive, setIsLockingPassive] = useState(false);
+
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Auth Listener
   useEffect(() => {
@@ -296,7 +357,8 @@ export default function App() {
           startingCapital: randomCapital,
           shares: { AAPL: 0, NVDA: 0, WMT: 0 },
           passiveFund: 0,
-          isPassiveLocked: false
+          isPassiveLocked: false,
+          trades: []
         };
         setDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), initialPortfolio);
       }
@@ -347,7 +409,11 @@ export default function App() {
     const initialState: GameState = {
       ...MARKET_SCHEDULE[0].state,
       prices: MARKET_SCHEDULE[0].prices,
-      history: { 0: MARKET_SCHEDULE[0].prices }
+      history: {
+        AAPL: [{ time: Date.now(), open: MARKET_SCHEDULE[0].prices.AAPL, high: MARKET_SCHEDULE[0].prices.AAPL, low: MARKET_SCHEDULE[0].prices.AAPL, close: MARKET_SCHEDULE[0].prices.AAPL }],
+        NVDA: [{ time: Date.now(), open: MARKET_SCHEDULE[0].prices.NVDA, high: MARKET_SCHEDULE[0].prices.NVDA, low: MARKET_SCHEDULE[0].prices.NVDA, close: MARKET_SCHEDULE[0].prices.NVDA }],
+        WMT: [{ time: Date.now(), open: MARKET_SCHEDULE[0].prices.WMT, high: MARKET_SCHEDULE[0].prices.WMT, low: MARKET_SCHEDULE[0].prices.WMT, close: MARKET_SCHEDULE[0].prices.WMT }]
+      }
     };
 
     const roomRef = await addDoc(collection(db, 'rooms'), {
@@ -362,9 +428,13 @@ export default function App() {
   };
 
   const handleLogin = async () => {
+    setIsLoggingIn(true);
     setError(null);
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
+      const result = await signInWithPopup(auth, new GoogleAuthProvider());
+      if (result.user) {
+        setUser(result.user);
+      }
     } catch (err: any) {
       console.error('Login error:', err);
       if (err.code === 'auth/unauthorized-domain') {
@@ -372,6 +442,8 @@ export default function App() {
       } else {
         setError(`Přihlášení se nezdařilo: ${err.message || 'Zkuste to prosím znovu.'}`);
       }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -460,9 +532,17 @@ export default function App() {
         return;
       }
       
+      const newTrade: Trade = {
+        ticker,
+        amount,
+        price: currentPrice,
+        time: Date.now()
+      };
+      
       await updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), {
         cash: portfolio.cash - totalCost,
-        [`shares.${ticker}`]: portfolio.shares[ticker] + amount
+        [`shares.${ticker}`]: portfolio.shares[ticker] + amount,
+        trades: [...(portfolio.trades || []), newTrade]
       });
 
       const priceChange = PRICE_IMPACT * amount;
@@ -491,9 +571,17 @@ export default function App() {
 
       const netProceeds = tradeValue - TRADING_FEE;
       
+      const newTrade: Trade = {
+        ticker,
+        amount,
+        price: currentPrice,
+        time: Date.now()
+      };
+
       await updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), {
         cash: portfolio.cash + netProceeds,
-        [`shares.${ticker}`]: portfolio.shares[ticker] + amount
+        [`shares.${ticker}`]: portfolio.shares[ticker] + amount,
+        trades: [...(portfolio.trades || []), newTrade]
       });
 
       const priceChange = PRICE_IMPACT * amount; // amount is negative
@@ -533,11 +621,16 @@ export default function App() {
         setError('Nedostatek hotovosti!');
         return;
       }
-      await updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), {
-        cash: portfolio.cash - amount,
-        passiveFund: portfolio.passiveFund + amount,
-        isPassiveLocked: true
-      });
+      setIsLockingPassive(true);
+      try {
+        await updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), {
+          cash: portfolio.cash - amount,
+          passiveFund: portfolio.passiveFund + amount,
+          isPassiveLocked: true
+        });
+      } finally {
+        setIsLockingPassive(false);
+      }
     }
   };
 
@@ -585,10 +678,15 @@ export default function App() {
 
           <button 
             onClick={handleLogin}
-            className="w-full flex items-center justify-center gap-2 bg-white text-black p-4 hover:bg-gray-200 transition-colors font-bold"
+            disabled={isLoggingIn}
+            className="w-full flex items-center justify-center gap-2 bg-white text-black p-4 hover:bg-gray-200 transition-colors font-bold disabled:opacity-50"
           >
-            <LogIn size={20} />
-            Přihlásit se přes Google
+            {isLoggingIn ? (
+              <RefreshCw size={20} className="animate-spin" />
+            ) : (
+              <LogIn size={20} />
+            )}
+            {isLoggingIn ? 'Přihlašování...' : 'Přihlásit se přes Google'}
           </button>
         </div>
       </div>
@@ -806,6 +904,7 @@ export default function App() {
                     currentPrice={currentPrices?.[focusTicker] || 100}
                     height="h-full"
                     isFocusMode={true}
+                    trades={portfolio?.trades}
                   />
                 </div>
 
@@ -930,6 +1029,7 @@ export default function App() {
                           history={gameState?.history || {}}
                           currentPrice={currentPrices?.[ticker] || 100}
                           height={isFocusMode ? "h-96" : "h-64"}
+                          trades={portfolio?.trades}
                         />
                       </div>
                     </div>
@@ -965,21 +1065,21 @@ export default function App() {
             )}
 
             {/* Passive Fund (Q0 only) */}
-            {gameState?.currentQuarter === 0 && !portfolio?.isPassiveLocked && (
+            {gameState?.currentQuarter === 0 && !portfolio?.isPassiveLocked && !isLockingPassive && (
               <div className="bg-blue-900/20 border-2 border-blue-500/50 p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
                 <h3 className="text-xs uppercase text-blue-400 opacity-50 mb-2 italic serif">Příležitost v pasivním fondu</h3>
                 <p className="text-sm mb-4 text-blue-100/70">Uzamkněte svůj kapitál pro garantovaný výnos 8 % na konci Q4. Vysoká stabilita, nulová volatilita.</p>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => handleLockPassive(Math.floor((portfolio?.startingCapital || 10000) * 0.25))}
-                    disabled={portfolio && portfolio.cash < (portfolio.startingCapital * 0.25)}
+                    disabled={isLockingPassive || (portfolio && portfolio.cash < (portfolio.startingCapital * 0.25))}
                     className="flex-1 bg-blue-600 text-white py-2 text-xs font-bold hover:bg-blue-500 transition-colors disabled:opacity-50"
                   >
                     UZAMKNOUT 25% (${Math.floor((portfolio?.startingCapital || 10000) * 0.25).toLocaleString()})
                   </button>
                   <button 
                     onClick={() => handleLockPassive(Math.floor((portfolio?.startingCapital || 10000) * 0.5))}
-                    disabled={portfolio && portfolio.cash < (portfolio.startingCapital * 0.5)}
+                    disabled={isLockingPassive || (portfolio && portfolio.cash < (portfolio.startingCapital * 0.5))}
                     className="flex-1 bg-blue-600 text-white py-2 text-xs font-bold hover:bg-blue-500 transition-colors disabled:opacity-50"
                   >
                     UZAMKNOUT 50% (${Math.floor((portfolio?.startingCapital || 10000) * 0.5).toLocaleString()})
