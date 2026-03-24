@@ -482,31 +482,38 @@ export default function App() {
     
     const nextPrices = { ...schedule.prices };
     
-    // Record the transition as a candle for each ticker
-    const nextHistory = { ...gameState.history };
+    // Prepare updates for each ticker
+    const updates: any = {
+      'gameState.currentQuarter': nextQ,
+      'gameState.sentiment': schedule.state.sentiment,
+      'gameState.prices': nextPrices,
+      'gameState.newsFlash': randomNews
+    };
+
     (['AAPL', 'NVDA', 'WMT'] as const).forEach(ticker => {
-      const tickerHistory = nextHistory[ticker] || [];
+      const tickerHistory = gameState.history?.[ticker] || [];
       const lastCandle = tickerHistory[tickerHistory.length - 1];
-      const open = lastCandle ? lastCandle.close : 100;
+      // Use the current price as the open for the next quarter's candle
+      const open = gameState.prices[ticker] || (lastCandle ? lastCandle.close : 100);
       const close = nextPrices[ticker];
       
       const newCandle: CandleData = {
         time: Date.now(),
         open,
         close,
-        high: Math.max(open, close) + (Math.random() * 10),
-        low: Math.min(open, close) - (Math.random() * 10)
+        high: Math.max(open, close) + (Math.random() * 5),
+        low: Math.min(open, close) - (Math.random() * 5)
       };
-      nextHistory[ticker] = [...tickerHistory, newCandle];
+      
+      updates[`gameState.history.${ticker}`] = arrayUnion(newCandle);
     });
 
-    await updateDoc(doc(db, 'rooms', roomId), { 
-      'gameState.currentQuarter': nextQ,
-      'gameState.sentiment': schedule.state.sentiment,
-      'gameState.prices': nextPrices,
-      'gameState.history': nextHistory,
-      'gameState.newsFlash': randomNews
-    });
+    try {
+      await updateDoc(doc(db, 'rooms', roomId), updates);
+    } catch (err) {
+      console.error("Failed to advance quarter:", err);
+      setError('Nepodařilo se posunout čas trhu. Zkuste to prosím znovu.');
+    }
   };
 
   const handleResetGame = async () => {
@@ -516,9 +523,9 @@ export default function App() {
       ...MARKET_SCHEDULE[0].state,
       prices: MARKET_SCHEDULE[0].prices,
       history: {
-        AAPL: [{ time: Date.now(), open: 100, high: 100, low: 100, close: 100 }],
-        NVDA: [{ time: Date.now(), open: 100, high: 100, low: 100, close: 100 }],
-        WMT: [{ time: Date.now(), open: 100, high: 100, low: 100, close: 100 }]
+        AAPL: [{ time: Date.now(), open: MARKET_SCHEDULE[0].prices.AAPL, high: MARKET_SCHEDULE[0].prices.AAPL, low: MARKET_SCHEDULE[0].prices.AAPL, close: MARKET_SCHEDULE[0].prices.AAPL }],
+        NVDA: [{ time: Date.now(), open: MARKET_SCHEDULE[0].prices.NVDA, high: MARKET_SCHEDULE[0].prices.NVDA, low: MARKET_SCHEDULE[0].prices.NVDA, close: MARKET_SCHEDULE[0].prices.NVDA }],
+        WMT: [{ time: Date.now(), open: MARKET_SCHEDULE[0].prices.WMT, high: MARKET_SCHEDULE[0].prices.WMT, low: MARKET_SCHEDULE[0].prices.WMT, close: MARKET_SCHEDULE[0].prices.WMT }]
       }
     };
 
@@ -528,7 +535,7 @@ export default function App() {
   const handleTrade = async (ticker: keyof StockPrices, amount: number) => {
     if (!user || !portfolio || !gameState || !roomId) return;
     
-    const currentPrice = gameState.prices[ticker];
+    const currentPrice = gameState.prices[ticker] || 100;
     const tradeValue = currentPrice * Math.abs(amount);
 
     if (amount > 0) { // Buy
@@ -563,10 +570,12 @@ export default function App() {
         low: Math.min(currentPrice, nextPrice) - (Math.random() * 2)
       };
 
-      await updateDoc(doc(db, 'rooms', roomId), {
-        [`gameState.prices.${ticker}`]: increment(priceChange),
-        [`gameState.history.${ticker}`]: arrayUnion(newCandle)
-      });
+      if (!isNaN(nextPrice)) {
+        await updateDoc(doc(db, 'rooms', roomId), {
+          [`gameState.prices.${ticker}`]: increment(priceChange),
+          [`gameState.history.${ticker}`]: arrayUnion(newCandle)
+        });
+      }
 
     } else { // Sell
       if (portfolio.shares[ticker] < Math.abs(amount)) {
@@ -601,10 +610,12 @@ export default function App() {
         low: Math.min(currentPrice, nextPrice) - (Math.random() * 2)
       };
 
-      await updateDoc(doc(db, 'rooms', roomId), {
-        [`gameState.prices.${ticker}`]: increment(priceChange),
-        [`gameState.history.${ticker}`]: arrayUnion(newCandle)
-      });
+      if (!isNaN(nextPrice)) {
+        await updateDoc(doc(db, 'rooms', roomId), {
+          [`gameState.prices.${ticker}`]: increment(priceChange),
+          [`gameState.history.${ticker}`]: arrayUnion(newCandle)
+        });
+      }
     }
     setError(null);
   };

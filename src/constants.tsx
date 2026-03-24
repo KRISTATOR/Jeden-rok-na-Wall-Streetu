@@ -87,16 +87,20 @@ export const CandlestickShape = (props: any) => {
   
   // Fallback pixelsPerUnit if height is 0 (flat candle)
   // We try to estimate it from the props if possible, otherwise use a small default
-  const priceRange = Math.abs(open - close) || 0.01;
-  const pixelsPerUnit = height / priceRange;
+  const priceRange = Math.abs(open - close);
+  // If priceRange is 0, we can't calculate pixelsPerUnit. 
+  // We'll use a default or calculate it from the high/low if they differ.
+  let pixelsPerUnit = 0;
+  if (priceRange > 0) {
+    pixelsPerUnit = height / priceRange;
+  } else if (Math.abs(high - low) > 0) {
+    // If it's a flat candle but has wicks, estimate scale from wicks
+    // This is a rough estimate but better than 0
+    pixelsPerUnit = 10; 
+  }
   
-  const highPx = isUp 
-    ? bodyTop - (high - close) * pixelsPerUnit 
-    : bodyTop - (high - open) * pixelsPerUnit;
-    
-  const lowPx = isUp
-    ? bodyBottom + (open - low) * pixelsPerUnit
-    : bodyBottom + (close - low) * pixelsPerUnit;
+  const highPx = bodyTop - (high - Math.max(open, close)) * pixelsPerUnit;
+  const lowPx = bodyBottom + (Math.min(open, close) - low) * pixelsPerUnit;
 
   return (
     <g>
