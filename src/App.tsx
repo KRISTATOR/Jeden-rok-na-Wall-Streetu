@@ -35,7 +35,8 @@ import {
   INITIAL_CAPITAL_MIN,
   INITIAL_CAPITAL_MAX,
   PASSIVE_FUND_RETURN,
-  TRADING_FEE
+  TRADING_FEE,
+  CandlestickShape
 } from './constants';
 import { cn } from './lib/utils';
 import { 
@@ -71,52 +72,6 @@ import {
 } from 'recharts';
 
 const PRICE_IMPACT = 2.5; // Increased from 0.5 for more noticeable effect
-
-const CandlestickShape = (props: any) => {
-  const { x, y, width, height, low, high, open, close, isUp } = props;
-  const color = isUp ? "#22c55e" : "#ef4444";
-  
-  // Ensure a minimum thickness for the body
-  const minHeight = 4;
-  const displayHeight = Math.max(height, minHeight);
-  const displayY = y - (displayHeight - height) / 2;
-
-  const bodyTop = y;
-  const bodyBottom = y + height;
-  
-  // Fallback pixelsPerUnit if height is 0 (flat candle)
-  // We try to estimate it from the props if possible, otherwise use a small default
-  const priceRange = Math.abs(open - close) || 0.01;
-  const pixelsPerUnit = height / priceRange;
-  
-  const highPx = isUp 
-    ? bodyTop - (high - close) * pixelsPerUnit 
-    : bodyTop - (high - open) * pixelsPerUnit;
-    
-  const lowPx = isUp
-    ? bodyBottom + (open - low) * pixelsPerUnit
-    : bodyBottom + (close - low) * pixelsPerUnit;
-
-  return (
-    <g>
-      <line
-        x1={x + width / 2}
-        y1={isNaN(highPx) ? displayY : highPx}
-        x2={x + width / 2}
-        y2={isNaN(lowPx) ? displayY + displayHeight : lowPx}
-        stroke={color}
-        strokeWidth={1}
-      />
-      <rect
-        x={x}
-        y={displayY}
-        width={width}
-        height={displayHeight}
-        fill={color}
-      />
-    </g>
-  );
-};
 
 interface StockChartProps {
   ticker: keyof StockPrices;
@@ -166,7 +121,7 @@ function StockChart({ ticker, currentQuarter, history, currentPrice, height = "h
       <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
         <div className="flex items-center gap-2">
           <div className={cn("w-2 h-2 rounded-full animate-pulse", lastIsUp ? "bg-[#22c55e]" : "bg-[#ef4444]")} />
-          <span className="text-[10px] text-gray-500 uppercase tracking-[0.2em] font-bold">Live Terminal</span>
+          <span className="text-[10px] text-gray-500 uppercase tracking-[0.2em] font-bold">Živý terminál</span>
         </div>
         <div className="text-[10px] text-gray-400 border-l border-white/10 pl-4 uppercase tracking-widest">
           {ticker} / USD
@@ -204,7 +159,7 @@ function StockChart({ ticker, currentQuarter, history, currentPrice, height = "h
                 const d = payload[0].payload;
                 return (
                   <div className="bg-[#0a0a0a] border border-[#2a2b2e] p-3 shadow-2xl backdrop-blur-md bg-opacity-95 z-50">
-                    <p className="text-[9px] text-gray-500 mb-2 font-bold uppercase tracking-widest">OHLC Data</p>
+                    <p className="text-[9px] text-gray-500 mb-2 font-bold uppercase tracking-widest">Data OHLC</p>
                     <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                       <span className="text-gray-500 text-[9px]">O</span>
                       <span className="text-white text-[9px] text-right">${d.open.toFixed(2)}</span>
@@ -408,7 +363,7 @@ export default function App() {
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
     } catch (err) {
-      setError('Login failed. Please try again.');
+      setError('Přihlášení se nezdařilo. Zkuste to prosím znovu.');
     }
   };
 
@@ -425,13 +380,13 @@ export default function App() {
 
   const handleNextQuarter = async () => {
     if (!isAdmin) {
-      setError('Only the Room Admin can move the market time.');
+      setError('Pouze správce místnosti může posunout čas trhu.');
       return;
     }
     if (!gameState || !roomId) return;
 
     if (gameState.currentQuarter >= 4) {
-      setError('The year has ended.');
+      setError('Rok skončil.');
       return;
     }
 
@@ -493,7 +448,7 @@ export default function App() {
     if (amount > 0) { // Buy
       const totalCost = tradeValue + TRADING_FEE;
       if (portfolio.cash < totalCost) {
-        setError(`Insufficient funds! Need $${totalCost.toLocaleString()} (incl. $${TRADING_FEE} fee)`);
+        setError(`Nedostatek prostředků! Potřebujete $${totalCost.toLocaleString()} (včetně poplatku $${TRADING_FEE})`);
         return;
       }
       
@@ -522,7 +477,7 @@ export default function App() {
 
     } else { // Sell
       if (portfolio.shares[ticker] < Math.abs(amount)) {
-        setError('Not enough shares!');
+        setError('Nemáte dostatek akcií!');
         return;
       }
 
@@ -557,13 +512,13 @@ export default function App() {
   const handleLockPassive = async (amount: number) => {
     if (!user || !portfolio || !gameState || !roomId) return;
     if (gameState.currentQuarter > 0) {
-      setError('Passive Fund is only available in Q0.');
+      setError('Pasivní fond je k dispozici pouze v Q0.');
       return;
     }
 
     if (amount > 0) {
       if (portfolio.cash < amount) {
-        setError('Insufficient funds!');
+        setError('Nedostatek hotovosti!');
         return;
       }
       await updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), {
@@ -605,14 +560,14 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-[#e0e0e0] flex items-center justify-center p-4 font-mono">
         <div className="max-w-md w-full bg-[#1a1a1a] border-2 border-[#2a2b2e] p-8 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
-          <h1 className="text-3xl font-bold mb-6 italic serif text-white">One Year on Wall Street</h1>
-          <p className="mb-8 text-gray-400">Identify yourself to the Bank to begin your simulation.</p>
+          <h1 className="text-3xl font-bold mb-6 italic serif text-white">Jeden rok na Wall Street</h1>
+          <p className="mb-8 text-gray-400">Přihlaste se do banky a začněte svou simulaci.</p>
           <button 
             onClick={handleLogin}
             className="w-full flex items-center justify-center gap-2 bg-white text-black p-4 hover:bg-gray-200 transition-colors font-bold"
           >
             <LogIn size={20} />
-            Login with Google
+            Přihlásit se přes Google
           </button>
         </div>
       </div>
@@ -624,9 +579,9 @@ export default function App() {
       <div className="min-h-screen bg-[#0a0a0a] text-[#e0e0e0] flex items-center justify-center p-4 font-mono">
         <div className="max-w-4xl w-full space-y-8">
           <div className="flex justify-between items-center border-b-2 border-[#2a2b2e] pb-6">
-            <h1 className="text-4xl font-black italic serif uppercase tracking-tighter text-white">Market Lobby</h1>
+            <h1 className="text-4xl font-black italic serif uppercase tracking-tighter text-white">Lobby</h1>
             <button onClick={handleLogout} className="flex items-center gap-2 hover:underline text-sm opacity-70 hover:opacity-100">
-              <LogOut size={16} /> Logout
+              <LogOut size={16} /> Odhlásit se
             </button>
           </div>
 
@@ -634,13 +589,13 @@ export default function App() {
             {/* Create Room */}
             <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-8 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
-                <Plus size={20} /> Create New Room
+                <Plus size={20} /> Vytvořit novou místnost
               </h2>
-              <p className="text-sm text-gray-400 mb-6">Start a new simulation. You will be the admin of this room.</p>
+              <p className="text-sm text-gray-400 mb-6">Spusťte novou simulaci. Budete správcem této místnosti.</p>
               <div className="space-y-4">
                 <input 
                   type="text" 
-                  placeholder="Room Name (e.g. Wall Street 2026)"
+                  placeholder="Název místnosti (např. Wall Street 2026)"
                   value={newRoomName}
                   onChange={(e) => setNewRoomName(e.target.value)}
                   className="w-full bg-[#0a0a0a] border-2 border-[#2a2b2e] p-4 text-white focus:border-white outline-none transition-colors"
@@ -650,7 +605,7 @@ export default function App() {
                   disabled={!newRoomName.trim()}
                   className="w-full bg-white text-black p-4 font-bold hover:bg-gray-200 transition-colors disabled:opacity-50"
                 >
-                  INITIALIZE ROOM
+                  VYTVOŘIT MÍSTNOST
                 </button>
               </div>
             </div>
@@ -658,12 +613,12 @@ export default function App() {
             {/* Join Room */}
             <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-8 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
-                <Users size={20} /> Join Active Room
+                <Users size={20} /> Připojit se k místnosti
               </h2>
-              <p className="text-sm text-gray-400 mb-6">Enter an existing simulation and compete with others.</p>
+              <p className="text-sm text-gray-400 mb-6">Vstupte do existující simulace a soutěžte s ostatními.</p>
               <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
                 {rooms.length === 0 ? (
-                  <div className="text-center py-8 text-gray-600 italic">No active rooms found.</div>
+                  <div className="text-center py-8 text-gray-600 italic">Nebyly nalezeny žádné aktivní místnosti.</div>
                 ) : (
                   rooms.map(room => (
                     <button 
@@ -674,7 +629,7 @@ export default function App() {
                       <div className="text-left">
                         <div className="font-bold text-white group-hover:text-white">{room.name}</div>
                         <div className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">
-                          Created {new Date(room.createdAt).toLocaleDateString()}
+                          Vytvořeno {new Date(room.createdAt).toLocaleDateString()}
                         </div>
                       </div>
                       <ChevronRight size={20} className="text-gray-500 group-hover:text-white" />
@@ -706,12 +661,12 @@ export default function App() {
             </button>
             <div>
               <h1 className="text-4xl font-black italic serif uppercase tracking-tighter text-white">
-                {rooms.find(r => r.id === roomId)?.name || "One Year on Wall Street"}
+                {rooms.find(r => r.id === roomId)?.name || "Jeden rok na Wall Street"}
               </h1>
               <div className="flex items-center gap-2 mt-2">
-                <span className="bg-white text-black px-2 py-0.5 text-xs uppercase font-bold">Live Simulation</span>
+                <span className="bg-white text-black px-2 py-0.5 text-xs uppercase font-bold">Živá simulace</span>
                 <span className="text-xs opacity-50">{user.email}</span>
-                {isAdmin && <span className="text-[10px] bg-yellow-600 text-black px-1 font-bold">ADMIN</span>}
+                {isAdmin && <span className="text-[10px] bg-yellow-600 text-black px-1 font-bold">SPRÁVCE</span>}
               </div>
             </div>
           </div>
@@ -726,10 +681,10 @@ export default function App() {
               )}
             >
               {isFocusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-              {isFocusMode ? "Exit Focus" : "Focus Mode"}
+              {isFocusMode ? "Zavřít detail" : "Detailní graf"}
             </button>
             <button onClick={handleLogout} className="flex items-center gap-2 hover:underline text-sm opacity-70 hover:opacity-100">
-              <LogOut size={16} /> Logout
+              <LogOut size={16} /> Odhlásit se
             </button>
           </div>
         </header>
@@ -738,22 +693,22 @@ export default function App() {
         {!isFocusMode && (
           <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]">
-              <h2 className="text-xs uppercase opacity-50 mb-2 italic serif">Current Quarter</h2>
+              <h2 className="text-xs uppercase opacity-50 mb-2 italic serif">Aktuální čtvrtletí</h2>
               <div className="text-4xl font-bold text-white">Q{gameState?.currentQuarter ?? 0}</div>
             </div>
             <div className={cn(
               "border-2 border-[#2a2b2e] p-6 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]",
               gameState?.sentiment === 'Bull' ? "bg-green-900/20 border-green-500/50" : gameState?.sentiment === 'Bear' ? "bg-red-900/20 border-red-500/50" : "bg-[#1a1a1a]"
             )}>
-              <h2 className="text-xs uppercase opacity-50 mb-2 italic serif">Market Sentiment</h2>
+              <h2 className="text-xs uppercase opacity-50 mb-2 italic serif">Nálada na trhu</h2>
               <div className="text-4xl font-bold flex items-center gap-2 text-white">
-                {gameState?.sentiment}
+                {gameState?.sentiment === 'Bull' ? 'Býčí' : gameState?.sentiment === 'Bear' ? 'Medvědí' : 'Neutrální'}
                 {gameState?.sentiment === 'Bull' && <TrendingUp size={32} className="text-green-500" />}
                 {gameState?.sentiment === 'Bear' && <TrendingDown size={32} className="text-red-500" />}
               </div>
             </div>
             <div className="bg-[#1a1a1a] border-2 border-white p-6 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]">
-              <h2 className="text-xs uppercase opacity-50 mb-2 italic serif text-white/50">News Flash</h2>
+              <h2 className="text-xs uppercase opacity-50 mb-2 italic serif text-white/50">Blesková zpráva</h2>
               <p className="text-sm leading-tight italic font-bold text-white">"{gameState?.newsFlash}"</p>
             </div>
           </section>
@@ -772,7 +727,7 @@ export default function App() {
                 <AlertCircle size={20} />
                 <span className="font-bold">{error}</span>
               </div>
-              <button onClick={() => setError(null)} className="text-xs underline">Dismiss</button>
+              <button onClick={() => setError(null)} className="text-xs underline">Zavřít</button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -809,11 +764,11 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-8">
                   <div className="text-right">
-                    <div className="text-[10px] uppercase opacity-50 text-gray-400">Available Cash</div>
+                    <div className="text-[10px] uppercase opacity-50 text-gray-400">Dostupná hotovost</div>
                     <div className="text-xl font-bold text-white">${portfolio?.cash.toLocaleString()}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[10px] uppercase opacity-50 text-gray-400">{focusTicker} Shares</div>
+                    <div className="text-[10px] uppercase opacity-50 text-gray-400">Akcie {focusTicker}</div>
                     <div className="text-xl font-bold text-white">{portfolio?.shares[focusTicker] || 0}</div>
                   </div>
                 </div>
@@ -836,10 +791,10 @@ export default function App() {
                 {/* Focus Mode Sidebar */}
                 <div className="w-80 bg-[#1a1a1a] border-l border-[#2a2b2e] p-6 flex flex-col gap-8">
                   <div>
-                    <h3 className="text-xs uppercase opacity-50 mb-4 italic serif">Execution Panel</h3>
+                    <h3 className="text-xs uppercase opacity-50 mb-4 italic serif">Obchodní panel</h3>
                     <div className="space-y-4">
                       <div className="bg-[#0a0a0a] p-4 border border-[#2a2b2e]">
-                        <div className="text-[10px] uppercase text-gray-500 mb-1">Market Price</div>
+                        <div className="text-[10px] uppercase text-gray-500 mb-1">Tržní cena</div>
                         <div className="text-3xl font-black text-white">${currentPrices?.[focusTicker].toFixed(2)}</div>
                       </div>
                       
@@ -848,13 +803,13 @@ export default function App() {
                           onClick={() => handleTrade(focusTicker, 1)}
                           className="bg-green-600 text-white py-4 font-bold hover:bg-green-500 transition-colors uppercase text-xs"
                         >
-                          BUY 1
+                          KOUPIT 1 ks
                         </button>
                         <button 
                           onClick={() => handleTrade(focusTicker, -1)}
                           className="bg-red-600 text-white py-4 font-bold hover:bg-red-500 transition-colors uppercase text-xs"
                         >
-                          SELL 1
+                          PRODAT 1 ks
                         </button>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
@@ -862,37 +817,39 @@ export default function App() {
                           onClick={() => handleTrade(focusTicker, 10)}
                           className="bg-green-600/20 border border-green-600 text-green-500 py-3 font-bold hover:bg-green-600/30 transition-colors uppercase text-[10px]"
                         >
-                          BUY 10
+                          KOUPIT 10 ks
                         </button>
                         <button 
                           onClick={() => handleTrade(focusTicker, -10)}
                           className="bg-red-600/20 border border-red-600 text-red-500 py-3 font-bold hover:bg-red-600/30 transition-colors uppercase text-[10px]"
                         >
-                          SELL 10
+                          PRODAT 10 ks
                         </button>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex-1">
-                    <h3 className="text-xs uppercase opacity-50 mb-4 italic serif">Position Details</h3>
+                    <h3 className="text-xs uppercase opacity-50 mb-4 italic serif">Podrobnosti o pozici</h3>
                     <div className="space-y-4">
                       <div className="flex justify-between items-center border-b border-[#2a2b2e] pb-2">
-                        <span className="text-xs text-gray-400">Total Value</span>
+                        <span className="text-xs text-gray-400">Celková hodnota</span>
                         <span className="text-sm font-bold text-white">
                           ${((portfolio?.shares[focusTicker] || 0) * (currentPrices?.[focusTicker] || 0)).toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between items-center border-b border-[#2a2b2e] pb-2">
-                        <span className="text-xs text-gray-400">Avg Cost</span>
+                        <span className="text-xs text-gray-400">Průměrná nákupní cena</span>
                         <span className="text-sm font-bold text-white">$100.00</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="bg-yellow-600/10 border border-yellow-600/50 p-4">
-                    <div className="text-[10px] uppercase text-yellow-500 font-bold mb-1">Market Sentiment</div>
-                    <div className="text-lg font-black text-white italic serif">{gameState?.sentiment}</div>
+                    <div className="text-[10px] uppercase text-yellow-500 font-bold mb-1">Nálada na trhu</div>
+                    <div className="text-lg font-black text-white italic serif">
+                      {gameState?.sentiment === 'Bull' ? 'Býčí' : gameState?.sentiment === 'Bear' ? 'Medvědí' : 'Neutrální'}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -906,8 +863,8 @@ export default function App() {
           <div className="space-y-6">
             <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] overflow-hidden shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
               <div className="bg-[#2a2b2e] text-white px-4 py-2 text-xs uppercase font-bold flex justify-between items-center">
-                <span>{isFocusMode ? "Market Overview (Focus Mode)" : "Market Prices"}</span>
-                <span className="flex items-center gap-1 opacity-50"><History size={12} /> Real-time Feed</span>
+                <span>{isFocusMode ? "Přehled trhu (Režim soustředění)" : "Tržní ceny"}</span>
+                <span className="flex items-center gap-1 opacity-50"><History size={12} /> Živý přenos</span>
               </div>
               <div className={cn(
                 "divide-y-2 divide-[#2a2b2e]",
@@ -963,7 +920,7 @@ export default function App() {
             {/* Trading Controls */}
             {!isFocusMode && gameState && gameState.currentQuarter < 4 && (
               <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
-                <h3 className="text-xs uppercase opacity-50 mb-4 italic serif">Trading Floor</h3>
+                <h3 className="text-xs uppercase opacity-50 mb-4 italic serif">Obchodní parket</h3>
                 <div className="grid grid-cols-3 gap-4">
                   {(['AAPL', 'NVDA', 'WMT'] as const).map((ticker) => (
                     <div key={ticker} className="space-y-2">
@@ -972,13 +929,13 @@ export default function App() {
                         onClick={() => handleTrade(ticker, 1)}
                         className="w-full bg-white text-black py-2 text-xs font-bold hover:bg-gray-200 transition-colors"
                       >
-                        BUY 1
+                        KOUPIT 1
                       </button>
                       <button 
                         onClick={() => handleTrade(ticker, -1)}
                         className="w-full border-2 border-[#2a2b2e] py-2 text-xs font-bold hover:bg-white/10 transition-colors"
                       >
-                        SELL 1
+                        PRODAT 1
                       </button>
                     </div>
                   ))}
@@ -989,22 +946,22 @@ export default function App() {
             {/* Passive Fund (Q0 only) */}
             {gameState?.currentQuarter === 0 && (
               <div className="bg-blue-900/20 border-2 border-blue-500/50 p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
-                <h3 className="text-xs uppercase text-blue-400 opacity-50 mb-2 italic serif">Passive Fund Opportunity</h3>
-                <p className="text-sm mb-4 text-blue-100/70">Lock in your capital for a guaranteed 8% return at the end of Q4. High stability, zero volatility.</p>
+                <h3 className="text-xs uppercase text-blue-400 opacity-50 mb-2 italic serif">Příležitost v pasivním fondu</h3>
+                <p className="text-sm mb-4 text-blue-100/70">Uzamkněte svůj kapitál pro garantovaný výnos 8 % na konci Q4. Vysoká stabilita, nulová volatilita.</p>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => handleLockPassive(Math.floor((portfolio?.startingCapital || 10000) * 0.25))}
                     disabled={portfolio && portfolio.cash < (portfolio.startingCapital * 0.25)}
                     className="flex-1 bg-blue-600 text-white py-2 text-xs font-bold hover:bg-blue-500 transition-colors disabled:opacity-50"
                   >
-                    LOCK 25% (${Math.floor((portfolio?.startingCapital || 10000) * 0.25).toLocaleString()})
+                    UZAMKNOUT 25% (${Math.floor((portfolio?.startingCapital || 10000) * 0.25).toLocaleString()})
                   </button>
                   <button 
                     onClick={() => handleLockPassive(Math.floor((portfolio?.startingCapital || 10000) * 0.5))}
                     disabled={portfolio && portfolio.cash < (portfolio.startingCapital * 0.5)}
                     className="flex-1 bg-blue-600 text-white py-2 text-xs font-bold hover:bg-blue-500 transition-colors disabled:opacity-50"
                   >
-                    LOCK 50% (${Math.floor((portfolio?.startingCapital || 10000) * 0.5).toLocaleString()})
+                    UZAMKNOUT 50% (${Math.floor((portfolio?.startingCapital || 10000) * 0.5).toLocaleString()})
                   </button>
                 </div>
               </div>
@@ -1022,7 +979,7 @@ export default function App() {
                       <Wallet size={24} />
                     </div>
                     <div>
-                      <div className="text-xs uppercase opacity-50 italic serif">Available Cash</div>
+                      <div className="text-xs uppercase opacity-50 italic serif">Dostupná hotovost</div>
                       <div className="text-4xl font-bold text-white">${portfolio?.cash.toLocaleString()}</div>
                     </div>
                   </div>
@@ -1030,28 +987,28 @@ export default function App() {
                   <div className="grid grid-cols-2 gap-8">
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 text-xs uppercase opacity-50 italic serif">
-                        <Briefcase size={14} /> Holdings
+                        <Briefcase size={14} /> Vaše pozice
                       </div>
                       <div className="space-y-2">
                         {(['AAPL', 'NVDA', 'WMT'] as const).map(ticker => (
                           <div key={ticker} className="flex justify-between items-center border-b border-[#2a2b2e] border-dashed pb-1">
                             <span className="font-bold">{ticker}</span>
-                            <span className="text-white">{portfolio?.shares[ticker] || 0} shares</span>
+                            <span className="text-white">{portfolio?.shares[ticker] || 0} ks</span>
                           </div>
                         ))}
                       </div>
                     </div>
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 text-xs uppercase opacity-50 italic serif">
-                        <ShieldAlert size={14} /> Passive Fund
+                        <ShieldAlert size={14} /> Pasivní fond
                       </div>
                       <div className="text-2xl font-bold text-white">${portfolio?.passiveFund.toLocaleString()}</div>
-                      <div className="text-[10px] opacity-50">Locked until Q4 (+8%)</div>
+                      <div className="text-[10px] opacity-50">Uzamčeno do Q4 (+8%)</div>
                     </div>
                   </div>
 
                   <div className="pt-6 border-t-2 border-[#2a2b2e] border-dashed">
-                    <div className="text-xs uppercase opacity-50 italic serif mb-1">Total Estimated Value</div>
+                    <div className="text-xs uppercase opacity-50 italic serif mb-1">Celková hodnota portfolia</div>
                     <div className="text-3xl font-black text-white">
                       ${(
                         (portfolio?.cash || 0) + 
@@ -1068,7 +1025,7 @@ export default function App() {
                 <div className="bg-[#1a1a1a] border-2 border-yellow-600/50 p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
                   <div className="flex items-center gap-2 text-yellow-500 mb-4">
                     <ShieldAlert size={20} />
-                    <h3 className="text-xs uppercase font-bold italic serif">Bank Controls (Admin)</h3>
+                    <h3 className="text-xs uppercase font-bold italic serif">Správa hry (Správce)</h3>
                   </div>
                   <div className="flex flex-col gap-2">
                     <div className="flex gap-2">
@@ -1077,13 +1034,13 @@ export default function App() {
                         disabled={gameState?.currentQuarter === 4}
                         className="flex-[2] bg-yellow-600 text-black py-4 font-bold flex items-center justify-center gap-2 hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        NEXT QUARTER <ChevronRight size={20} />
+                        DALŠÍ ČTVRTLETÍ <ChevronRight size={20} />
                       </button>
                       <button 
                         onClick={handleTriggerEvent}
                         className="flex-1 border-2 border-yellow-600 text-yellow-500 py-4 font-bold flex items-center justify-center gap-2 hover:bg-yellow-600/10 transition-colors"
                       >
-                        TRIGGER EVENT
+                        NÁHODNÁ UDÁLOST
                       </button>
                     </div>
                     <button 
@@ -1095,10 +1052,10 @@ export default function App() {
                           : "border-2 border-white text-white hover:bg-white/10"
                       )}
                     >
-                      <RefreshCw size={18} /> {gameState?.currentQuarter === 4 ? 'RESET SIMULATION' : 'FORCE RESET'}
+                      <RefreshCw size={18} /> {gameState?.currentQuarter === 4 ? 'RESETOVAT SIMULACI' : 'VYNUTIT RESET'}
                     </button>
                   </div>
-                  <p className="text-[10px] text-yellow-500 mt-2 opacity-70">Only Kristian can move the market time. Current Quarter: Q{gameState?.currentQuarter}</p>
+                  <p className="text-[10px] text-yellow-500 mt-2 opacity-70">Pouze Kristián může posunout čas trhu. Aktuální čtvrtletí: Q{gameState?.currentQuarter}</p>
                 </div>
               )}
             </div>
@@ -1120,14 +1077,14 @@ export default function App() {
                 <div className="absolute -top-6 -right-6 bg-yellow-500 border-4 border-white p-4 rotate-12">
                   <Trophy size={48} className="text-black" />
                 </div>
-                <h2 className="text-5xl font-black italic serif uppercase mb-4 text-white">Year End Report</h2>
+                <h2 className="text-5xl font-black italic serif uppercase mb-4 text-white">Výroční zpráva</h2>
                 <p className="text-xl mb-8 border-l-4 border-white pl-4 italic text-gray-300">
-                  "The market has closed. You've survived one year on Wall Street. Let's see your final standing."
+                  "Trh se uzavřel. Přežili jste jeden rok na Wall Street. Podívejme se na váš konečný výsledek."
                 </p>
                 
                 <div className="grid grid-cols-2 gap-8 mb-8">
                   <div className="space-y-2">
-                    <div className="text-xs uppercase opacity-50 text-gray-400">Final Capital</div>
+                    <div className="text-xs uppercase opacity-50 text-gray-400">Celkové jmění</div>
                     <div className="text-4xl font-bold text-white">
                       ${(
                         (portfolio?.cash || 0) + 
@@ -1136,7 +1093,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <div className="text-xs uppercase opacity-50 text-gray-400">Profit/Loss</div>
+                    <div className="text-xs uppercase opacity-50 text-gray-400">Zisk/Ztráta</div>
                     <div className={cn(
                       "text-4xl font-bold",
                       ((portfolio?.cash || 0) + (Object.entries(portfolio?.shares || {}).reduce((acc: number, [t, q]) => acc + (q as number) * (gameState?.prices?.[t as keyof StockPrices] || 0), 0))) >= (portfolio?.startingCapital || 0) ? "text-green-500" : "text-red-500"
@@ -1148,7 +1105,7 @@ export default function App() {
                 </div>
 
                 <div className="bg-[#0a0a0a] p-4 border-2 border-[#2a2b2e] mb-8">
-                  <h3 className="font-bold uppercase text-xs mb-2 text-gray-500">Final Portfolio Mix</h3>
+                  <h3 className="font-bold uppercase text-xs mb-2 text-gray-500">Konečné složení portfolia</h3>
                   <div className="flex gap-4">
                     {(['AAPL', 'NVDA', 'WMT'] as const).map(t => (
                       <div key={t} className="flex-1 text-center border-r border-[#2a2b2e] last:border-none">
@@ -1163,7 +1120,7 @@ export default function App() {
                   onClick={() => setShowGameOver(false)}
                   className="w-full bg-white text-black py-4 font-bold hover:bg-gray-200 transition-colors uppercase tracking-widest"
                 >
-                  Return to Dashboard
+                  Zpět na přehled
                 </button>
               </div>
             </motion.div>
@@ -1172,7 +1129,7 @@ export default function App() {
 
         {/* Footer / Educational */}
         <footer className="text-center text-[10px] uppercase opacity-30 pt-12">
-          One Year on Wall Street © 2026 • Volatility is your friend • Bull Markets create wealth, Bear Markets create opportunity.
+          Jeden rok na Wall Street © 2026 • Volatilita je váš přítel • Býčí trhy vytvářejí bohatství, medvědí trhy vytvářejí příležitosti.
         </footer>
         {/* Leave Confirmation Modal */}
         <AnimatePresence>
@@ -1191,13 +1148,13 @@ export default function App() {
               >
                 <div className="flex items-center gap-3 text-yellow-500 mb-4">
                   <AlertCircle size={24} />
-                  <h2 className="text-xl font-black uppercase italic serif">Abandon Floor?</h2>
+                  <h2 className="text-xl font-black uppercase italic serif">Opustit hru?</h2>
                 </div>
                 <p className="text-sm opacity-70 mb-6 leading-relaxed">
-                  Are you sure you want to leave this session? 
+                  Opravdu chcete tuto místnost opustit? 
                   {isAdmin && (
                     <span className="block mt-2 text-red-400 font-bold">
-                      Warning: As the Admin, leaving will permanently delete this room for everyone.
+                      Varování: Jako správce trvale smažete tuto místnost pro všechny.
                     </span>
                   )}
                 </p>
@@ -1209,13 +1166,13 @@ export default function App() {
                     }}
                     className="flex-1 bg-white text-black py-3 font-bold hover:bg-gray-200 transition-colors"
                   >
-                    LEAVE
+                    ODEJÍT
                   </button>
                   <button 
                     onClick={() => setShowLeaveConfirm(false)}
                     className="flex-1 border-2 border-white text-white py-3 font-bold hover:bg-white/10 transition-colors"
                   >
-                    CANCEL
+                    ZRUŠIT
                   </button>
                 </div>
               </motion.div>
