@@ -120,39 +120,28 @@ function StockChart({ ticker, currentMonth, history, currentPrice, height = "h-8
     const tickerTrades = trades.filter(t => t.ticker === ticker);
 
     const baseData = [...tickerHistory];
-    
     const lastHistoryCandle = baseData[baseData.length - 1];
-    const liveOpen = lastHistoryCandle ? lastHistoryCandle.close : currentPrice;
     
-    // Track session high/low for the live candle to prevent "shrinking"
-    const liveTrades = tickerTrades.filter(t => t.time > (lastHistoryCandle?.time || 0));
-    const tradePrices = liveTrades.map(t => t.price);
-    const allPrices = [liveOpen, currentPrice, ...tradePrices];
+    // Get trades since last history candle
+    const liveTrades = tickerTrades
+      .filter(t => t.time > (lastHistoryCandle?.time || 0))
+      .sort((a, b) => a.time - b.time);
 
-    const liveHigh = Math.max(...allPrices);
-    const liveLow = Math.min(...allPrices);
+    const lastPrice = lastHistoryCandle ? lastHistoryCandle.close : (liveTrades.length > 0 ? liveTrades[0].price : currentPrice);
 
-    // Clock synchronization: Use the last history candle's time as a reference
-    // to avoid misalignment due to local clock drift.
-    // If we don't have history, we fall back to Date.now()
+    // Aggregate all activity since last history candle into a single "live" candle
     const now = Date.now();
-    let liveTime = now;
+    const lastTime = lastHistoryCandle ? lastHistoryCandle.time : 0;
+    const liveTime = Math.max(lastTime + 1000, now);
     
-    if (lastHistoryCandle) {
-      // If the local clock is behind the history, force the live candle forward
-      // If the local clock is ahead, we still want to be at least 1s ahead of history
-      liveTime = Math.max(lastHistoryCandle.time + 1000, now);
-      
-      // If the history is very recent (within 10s), we can assume the server time
-      // is roughly lastHistoryCandle.time + (time since it was received).
-      // For simplicity, we just ensure it's always strictly increasing.
-    }
-
+    const tradePrices = liveTrades.map(t => t.price);
+    const allPrices = [lastPrice, currentPrice, ...tradePrices];
+    
     baseData.push({
       time: liveTime,
-      open: liveOpen,
-      high: liveHigh,
-      low: liveLow,
+      open: lastPrice,
+      high: Math.max(...allPrices),
+      low: Math.min(...allPrices),
       close: currentPrice
     });
 
@@ -671,8 +660,8 @@ export default function App() {
         const sentiment = gameState.sentiment;
         
         // Random walk based on sentiment
-        const bias = sentiment === 'Bull' ? 0.15 : sentiment === 'Bear' ? -0.15 : 0;
-        const change = (Math.random() - 0.5 + bias) * 0.5;
+        const bias = sentiment === 'Bull' ? 0.3 : sentiment === 'Bear' ? -0.3 : 0;
+        const change = (Math.random() - 0.5 + bias) * 1.5;
         const nextPrice = Math.max(1, Math.round((currentPrice + change) * 100) / 100);
         
         const tickerHistory = gameState.history?.[ticker] || [];
@@ -686,8 +675,8 @@ export default function App() {
           time: now,
           open,
           close: nextPrice,
-          high: Math.round((Math.max(open, nextPrice) + (Math.random() * 0.2)) * 100) / 100,
-          low: Math.round((Math.min(open, nextPrice) - (Math.random() * 0.2)) * 100) / 100
+          high: Math.round((Math.max(open, nextPrice) + (Math.random() * 0.5)) * 100) / 100,
+          low: Math.round((Math.min(open, nextPrice) - (Math.random() * 0.5)) * 100) / 100
         };
 
         updates[`gameState.prices.${ticker}`] = nextPrice;

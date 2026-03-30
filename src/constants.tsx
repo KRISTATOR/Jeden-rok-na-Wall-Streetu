@@ -1,6 +1,6 @@
 import { StockPrices } from './types';
 
-export const PRICE_IMPACT = 5.0;
+export const PRICE_IMPACT = 1.0;
 export const INITIAL_CAPITAL_MIN = 7500;
 export const INITIAL_CAPITAL_MAX = 10000;
 export const PASSIVE_FUND_RETURN = 0.08;
