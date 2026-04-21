@@ -726,7 +726,7 @@ export default function App() {
         
         // Only add a new candle if enough time has passed (e.g., 5 seconds)
         // or if the price has moved significantly. 
-        // For simplicity in this game, we'll add a candle every heartbeat (10s)
+        // For simplicity in this game, we'll add a candle every heartbeat (3s)
         const open = lastCandle ? lastCandle.close : currentPrice;
         
         // Widen the High/Low to make candles visually more pronounced and less smooth
@@ -749,7 +749,7 @@ export default function App() {
       } catch (err) {
         console.error("Market heartbeat failed:", err);
       }
-    }, 10000);
+    }, 3000); // 3 seconds interval
 
     return () => clearInterval(interval);
   }, [isAdmin, roomId]);
