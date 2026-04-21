@@ -714,7 +714,7 @@ export default function App() {
       } catch (err) {
         console.error("Market heartbeat failed:", err);
       }
-    }, 3000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [isAdmin, roomId]);
