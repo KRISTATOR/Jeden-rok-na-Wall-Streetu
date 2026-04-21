@@ -145,22 +145,40 @@ function StockChart({ ticker, currentMonth, history, currentPrice, height = "h-8
       close: currentPrice
     });
 
-    // Deduplicate by second to prevent lightweight-charts errors
+    // Aggregate candles by second to prevent lightweight-charts errors
     const deduplicated: CandleData[] = [];
-    const seenSeconds = new Set<number>();
+    const candlesBySecond = new Map<number, CandleData[]>();
     
     // Sort by time to ensure order
     baseData.sort((a, b) => a.time - b.time);
 
-    // Keep the latest candle for each second
-    for (let i = baseData.length - 1; i >= 0; i--) {
-      const candle = baseData[i];
+    // Group by second
+    baseData.forEach(candle => {
       const second = Math.floor(candle.time / 1000);
-      if (!seenSeconds.has(second)) {
-        deduplicated.unshift(candle);
-        seenSeconds.add(second);
+      if (!candlesBySecond.has(second)) {
+        candlesBySecond.set(second, []);
       }
-    }
+      candlesBySecond.get(second)!.push(candle);
+    });
+
+    // Aggregate each second
+    Array.from(candlesBySecond.entries()).sort(([a], [b]) => a - b).forEach(([second, candles]) => {
+      if (candles.length === 1) {
+        deduplicated.push(candles[0]);
+      } else {
+        const first = candles[0];
+        const last = candles[candles.length - 1];
+        const high = Math.max(...candles.map(c => c.high));
+        const low = Math.min(...candles.map(c => c.low));
+        deduplicated.push({
+          time: last.time, // Use the latest time in that second
+          open: first.open,
+          high,
+          low,
+          close: last.close
+        });
+      }
+    });
 
     if (deduplicated.length === 1) {
       const dummy: CandleData = {
@@ -489,6 +507,11 @@ export default function App() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(60);
 
+  const gameStateRef = useRef<GameState | null>(null);
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
   const isAdmin = useMemo(() => {
     if (!user || !roomId) return false;
     const room = rooms.find(r => r.id === roomId);
@@ -649,22 +672,25 @@ export default function App() {
 
   // Market Heartbeat (Admin only) - Updates prices slightly and records history
   useEffect(() => {
-    if (!isAdmin || !gameState || !roomId || gameState.isPaused) return;
+    if (!isAdmin || !roomId) return;
 
     const interval = setInterval(async () => {
+      const currentGameState = gameStateRef.current;
+      if (!currentGameState || currentGameState.isPaused) return;
+
       const updates: any = {};
       const now = Date.now();
 
       (['AAPL', 'NVDA', 'WMT'] as const).forEach(ticker => {
-        const currentPrice = gameState.prices[ticker];
-        const sentiment = gameState.sentiment;
+        const currentPrice = currentGameState.prices[ticker];
+        const sentiment = currentGameState.sentiment;
         
         // Random walk based on sentiment
         const bias = sentiment === 'Bull' ? 0.3 : sentiment === 'Bear' ? -0.3 : 0;
         const change = (Math.random() - 0.5 + bias) * 1.5;
         const nextPrice = Math.max(1, Math.round((currentPrice + change) * 100) / 100);
         
-        const tickerHistory = gameState.history?.[ticker] || [];
+        const tickerHistory = currentGameState.history?.[ticker] || [];
         const lastCandle = tickerHistory[tickerHistory.length - 1];
         
         // Only add a new candle if enough time has passed (e.g., 5 seconds)
@@ -691,7 +717,7 @@ export default function App() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [isAdmin, gameState?.isPaused, roomId, gameState?.sentiment]);
+  }, [isAdmin, roomId]);
 
   const handleCreateRoom = async () => {
     if (!user || !newRoomName.trim()) return;
@@ -747,10 +773,11 @@ export default function App() {
   };
 
   const handleNextMonth = async () => {
-    if (!isAdmin || !gameState || !roomId) return;
+    const currentGameState = gameStateRef.current;
+    if (!isAdmin || !currentGameState || !roomId) return;
 
     // Prevent double-triggering for the same month
-    if (gameState.currentMonth >= 11) {
+    if (currentGameState.currentMonth >= 11) {
       await updateDoc(doc(db, 'rooms', roomId), {
         'gameState.isPaused': true,
         'gameState.nextTickAt': null
@@ -758,11 +785,9 @@ export default function App() {
       return;
     }
 
-    const nextM = gameState.currentMonth + 1;
+    const nextM = currentGameState.currentMonth + 1;
     const schedule = MARKET_SCHEDULE[nextM];
     const randomNews = schedule.newsPool[Math.floor(Math.random() * schedule.newsPool.length)];
-    
-    const nextPrices = { ...schedule.prices };
     
     // Prepare updates for each ticker
     const updates: any = {
@@ -773,20 +798,25 @@ export default function App() {
     };
 
     (['AAPL', 'NVDA', 'WMT'] as const).forEach(ticker => {
-      const tickerHistory = gameState.history?.[ticker] || [];
+      const tickerHistory = currentGameState.history?.[ticker] || [];
       const lastCandle = tickerHistory[tickerHistory.length - 1];
-      const open = gameState.prices[ticker] || (lastCandle ? lastCandle.close : 100);
-      const close = nextPrices[ticker];
+      const currentPrice = currentGameState.prices[ticker] || (lastCandle ? lastCandle.close : 100);
+      
+      const prevSchedulePrice = MARKET_SCHEDULE[currentGameState.currentMonth].prices[ticker];
+      const nextSchedulePrice = schedule.prices[ticker];
+      const priceDiff = nextSchedulePrice - prevSchedulePrice;
+      
+      const close = Math.max(1, currentPrice + priceDiff);
       
       // Use a slightly more dramatic high/low for month transitions
-      const volatility = Math.abs(close - open) * 0.2 + 2;
+      const volatility = Math.abs(close - currentPrice) * 0.2 + 2;
       
       const newCandle: CandleData = {
         time: Date.now() + Math.random() * 1000, // Ensure uniqueness and slight offset
-        open: Number(open.toFixed(2)),
+        open: Number(currentPrice.toFixed(2)),
         close: Number(close.toFixed(2)),
-        high: Number((Math.max(open, close) + (Math.random() * volatility)).toFixed(2)),
-        low: Number((Math.min(open, close) - (Math.random() * volatility)).toFixed(2))
+        high: Number((Math.max(currentPrice, close) + (Math.random() * volatility)).toFixed(2)),
+        low: Number((Math.min(currentPrice, close) - (Math.random() * volatility)).toFixed(2))
       };
       
       updates[`gameState.prices.${ticker}`] = close;
@@ -868,9 +898,18 @@ export default function App() {
       const priceChange = PRICE_IMPACT * amount;
       const newPrice = Math.max(1, Math.round((currentPrice + priceChange) * 100) / 100);
       
+      const tradeCandle: CandleData = {
+        time: Date.now(),
+        open: currentPrice,
+        close: newPrice,
+        high: Math.max(currentPrice, newPrice),
+        low: Math.min(currentPrice, newPrice)
+      };
+      
       // Update the price directly for immediate feedback
       await updateDoc(doc(db, 'rooms', roomId), {
-        [`gameState.prices.${ticker}`]: newPrice
+        [`gameState.prices.${ticker}`]: newPrice,
+        [`gameState.history.${ticker}`]: arrayUnion(tradeCandle)
       });
     } else { // Sell
       if (portfolio.shares[ticker] < Math.abs(amount)) {
@@ -896,9 +935,18 @@ export default function App() {
       const priceChange = PRICE_IMPACT * amount; // amount is negative
       const newPrice = Math.max(1, Math.round((currentPrice + priceChange) * 100) / 100);
 
+      const tradeCandle: CandleData = {
+        time: Date.now(),
+        open: currentPrice,
+        close: newPrice,
+        high: Math.max(currentPrice, newPrice),
+        low: Math.min(currentPrice, newPrice)
+      };
+
       // Update the price directly for immediate feedback
       await updateDoc(doc(db, 'rooms', roomId), {
-        [`gameState.prices.${ticker}`]: newPrice
+        [`gameState.prices.${ticker}`]: newPrice,
+        [`gameState.history.${ticker}`]: arrayUnion(tradeCandle)
       });
     }
     setError(null);
