@@ -540,6 +540,11 @@ export default function App() {
     return onSnapshot(q, (snap) => {
       const r = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Room));
       setRooms(r);
+    }, (err: any) => {
+      console.error('Rooms Snapshot Error:', err);
+      if (err.code === 'resource-exhausted') {
+        setError('Firebase Daily Quota Exceeded. The game will resume working tomorrow, or you can upgrade to the Blaze plan in Firebase Console.');
+      }
     });
   }, [user]);
 
@@ -563,10 +568,12 @@ export default function App() {
           setShowGameOver(false);
         }
       }
-    }, (err) => {
+    }, (err: any) => {
       console.error('GameState Snapshot Error:', err);
       if (err.code === 'permission-denied') {
         setError('Market data access denied.');
+      } else if (err.code === 'resource-exhausted') {
+        setError('Firebase Daily Quota Exceeded. The game will resume working tomorrow, or you can upgrade to the Blaze plan in Firebase Console.');
       }
     });
 
@@ -604,11 +611,15 @@ export default function App() {
           isPassiveLocked: false,
           trades: []
         };
-        setDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), initialPortfolio);
+        setDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), initialPortfolio).catch((err: any) => {
+          if (err.code === 'resource-exhausted') setError('Firebase Daily Quota Exceeded. The game will resume working tomorrow, or you can upgrade to the Blaze plan in Firebase Console.');
+        });
       }
-    }, (err) => {
+    }, (err: any) => {
       console.error('Portfolio Snapshot Error:', err);
-      if (err.code === 'permission-denied') {
+      if (err.code === 'resource-exhausted') {
+        setError('Firebase Daily Quota Exceeded. The game will resume working tomorrow, or you can upgrade to the Blaze plan in Firebase Console.');
+      } else if (err.code === 'permission-denied') {
         setError('Portfolio access denied.');
       }
     });
