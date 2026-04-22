@@ -906,6 +906,10 @@ export default function App() {
   const handleResetGame = async () => {
     if (!isAdmin || !roomId) return;
     
+    if (!window.confirm("Opravdu chcete vymazat celou herní historii a restartovat hru pro všechny hráče od začátku?")) {
+      return;
+    }
+    
     const initialState: GameState = {
       currentMonth: 0,
       isPaused: true,
@@ -1004,6 +1008,27 @@ export default function App() {
       });
     }
     setError(null);
+  };
+
+  const handleMaxBuy = async (ticker: keyof StockPrices) => {
+    if (!portfolio || !gameState || !roomId) return;
+    const currentPrice = gameState.prices[ticker] || 100;
+    const maxShares = Math.floor((portfolio.cash - TRADING_FEE) / currentPrice);
+    if (maxShares > 0) {
+      await handleTrade(ticker, maxShares);
+    } else {
+      setError(`Nedostatek hotovosti pro nákup (potřebujete na poplatek $${TRADING_FEE} a 1 akcii)`);
+    }
+  };
+
+  const handleMaxSell = async (ticker: keyof StockPrices) => {
+    if (!portfolio || !roomId) return;
+    const maxShares = portfolio.shares[ticker];
+    if (maxShares > 0) {
+      await handleTrade(ticker, -maxShares);
+    } else {
+      setError('Nemáte žádné akcie k prodeji!');
+    }
   };
 
   const handleLockPassive = async (amount: number) => {
@@ -1281,8 +1306,8 @@ export default function App() {
                     onClick={handleResetGame}
                     className="flex-1 bg-red-900/20 border border-red-500 text-red-500 text-[9px] sm:text-[10px] font-bold py-2 sm:py-1 hover:bg-red-900/40 uppercase flex items-center justify-center gap-1"
                   >
-                    Reset
-                    <InfoTooltip content="Vynuluje hru a vrátí všechny hráče na začátek." />
+                    Restart Hry
+                    <InfoTooltip content="TOTO VYMAŽE VŠECHNO: Vynuluje hru a vrátí všechny hráče na začátek." />
                   </button>
                 </div>
               )}
@@ -1416,6 +1441,7 @@ export default function App() {
 
                 {/* Focus Mode Sidebar */}
                 <div className="w-full lg:w-80 bg-[#1a1a1a] border-t lg:border-t-0 lg:border-l border-[#2a2b2e] p-4 sm:p-6 flex flex-col gap-6 sm:gap-8 overflow-y-auto">
+                  {!isAdmin && (
                   <div>
                     <h3 className="text-[10px] sm:text-xs uppercase opacity-50 mb-3 sm:mb-4 italic serif flex items-center">
                       Obchodní panel
@@ -1446,16 +1472,16 @@ export default function App() {
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <button 
-                          onClick={() => handleTrade(focusTicker, 10)}
+                          onClick={() => handleMaxBuy(focusTicker)}
                           className="bg-green-600/20 border border-green-600 text-green-500 py-2 sm:py-3 font-bold hover:bg-green-600/30 active:scale-95 transition-all uppercase text-[9px] sm:text-[10px]"
                         >
-                          KOUPIT 10 ks
+                          MAX NÁKUP
                         </button>
                         <button 
-                          onClick={() => handleTrade(focusTicker, -10)}
+                          onClick={() => handleMaxSell(focusTicker)}
                           className="bg-red-600/20 border border-red-600 text-red-500 py-2 sm:py-3 font-bold hover:bg-red-600/30 active:scale-95 transition-all uppercase text-[9px] sm:text-[10px]"
                         >
-                          PRODAT 10 ks
+                          MAX PRODEJ
                         </button>
                       </div>
                       <div className="text-[9px] sm:text-[10px] text-gray-500 text-center flex items-center justify-center gap-1">
@@ -1464,7 +1490,9 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+                  )}
 
+                  {!isAdmin && (
                   <div className="flex-1">
                     <h3 className="text-[10px] sm:text-xs uppercase opacity-50 mb-3 sm:mb-4 italic serif flex items-center">
                       Podrobnosti o pozici
@@ -1489,6 +1517,7 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   <div className="bg-yellow-600/10 border border-yellow-600/50 p-3 sm:p-4">
                     <div className="text-[9px] sm:text-[10px] uppercase text-yellow-500 font-bold mb-1 flex items-center">
@@ -1572,7 +1601,7 @@ export default function App() {
             </div>
 
             {/* Trading Controls */}
-            {!isFocusMode && gameState && gameState.currentMonth < 11 && (
+            {!isAdmin && !isFocusMode && gameState && gameState.currentMonth < 11 && (
               <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-4 sm:p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
                 <h3 className="text-[10px] sm:text-xs uppercase opacity-50 mb-3 sm:mb-4 italic serif flex items-center">
                   Obchodní parket
@@ -1582,7 +1611,7 @@ export default function App() {
                   {(['AAPL', 'NVDA', 'WMT'] as const).map((ticker) => (
                     <div key={ticker} className="space-y-2 p-3 bg-[#0a0a0a] border border-[#2a2b2e] sm:bg-transparent sm:border-0">
                       <div className="text-center font-bold text-white">{ticker}</div>
-                      <div className="grid grid-cols-2 sm:grid-cols-1 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <button 
                           onClick={() => handleTrade(ticker, 1)}
                           className="w-full bg-white text-black py-2.5 sm:py-2 text-[10px] sm:text-xs font-bold hover:bg-gray-200 active:scale-95 transition-all"
@@ -1594,6 +1623,18 @@ export default function App() {
                           className="w-full border-2 border-[#2a2b2e] py-2.5 sm:py-2 text-[10px] sm:text-xs font-bold hover:bg-white/10 active:scale-95 transition-all"
                         >
                           PRODAT 1
+                        </button>
+                        <button 
+                          onClick={() => handleMaxBuy(ticker)}
+                          className="w-full bg-green-500/20 border border-green-500/50 text-green-500 py-2.5 sm:py-2 text-[10px] font-bold hover:bg-green-500/30 active:scale-95 transition-all"
+                        >
+                          MAX NAK.
+                        </button>
+                        <button 
+                          onClick={() => handleMaxSell(ticker)}
+                          className="w-full bg-red-500/20 border border-red-500/50 text-red-500 py-2.5 sm:py-2 text-[10px] font-bold hover:bg-red-500/30 active:scale-95 transition-all"
+                        >
+                          MAX PROD.
                         </button>
                       </div>
                     </div>
@@ -1607,7 +1648,7 @@ export default function App() {
             )}
 
             {/* Passive Fund (Q0 only) */}
-            {gameState?.currentMonth === 0 && !portfolio?.isPassiveLocked && !isLockingPassive && (
+            {!isAdmin && gameState?.currentMonth === 0 && !portfolio?.isPassiveLocked && !isLockingPassive && (
               <div className="bg-blue-900/20 border-2 border-blue-500/50 p-4 sm:p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
                 <h3 className="text-[10px] sm:text-xs uppercase text-blue-400 opacity-50 mb-2 italic serif flex items-center">
                   Příležitost v pasivním fondu
@@ -1637,6 +1678,7 @@ export default function App() {
           {/* Portfolio & Admin */}
           {!isFocusMode && (
             <div className="space-y-6">
+              {!isAdmin && (
               <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-5 sm:p-8 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] relative">
                 <div className="absolute top-0 right-0 bg-[#2a2b2e] text-white px-3 py-1 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest">Portfolio</div>
                 <div className="space-y-6 sm:space-y-8">
@@ -1693,6 +1735,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Admin Controls */}
               {isAdmin && (
@@ -1734,10 +1777,10 @@ export default function App() {
                         "w-full py-2.5 sm:py-3 font-bold flex items-center justify-center gap-2 active:scale-95 transition-all text-[10px] sm:text-xs",
                         gameState?.currentMonth === 11 
                           ? "bg-white text-black hover:bg-gray-200" 
-                          : "border-2 border-white text-white hover:bg-white/10"
+                          : "border-2 border-red-500 text-red-500 hover:bg-red-500/10"
                       )}
                     >
-                      <RefreshCw size={16} className="sm:w-[18px] sm:h-[18px]" /> {gameState?.currentMonth === 11 ? 'RESETOVAT SIMULACI' : 'VYNUTIT RESET'}
+                      <RefreshCw size={16} className="sm:w-[18px] sm:h-[18px]" /> {gameState?.currentMonth === 11 ? 'ZAČÍT NOVOU HRU' : 'HRÁT ZNOVU OD ZAČÁTKU'}
                     </button>
                   </div>
                   <p className="text-[9px] sm:text-[10px] text-yellow-500 mt-2 opacity-70">Pouze Kristián může ovládat čas trhu. Aktuální měsíc: {MONTH_NAMES[gameState?.currentMonth ?? 0]}</p>
