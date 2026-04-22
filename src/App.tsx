@@ -82,16 +82,16 @@ function InfoTooltip({ content }: { content: string }) {
       </span>
       <AnimatePresence>
         {isVisible && (
-          <motion.div
-            initial={{ opacity: 0, y: 5 }}
+            <motion.div
+            initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 5 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-[#131722] border border-white/10 rounded shadow-2xl z-50 pointer-events-none"
+            exit={{ opacity: 0, y: -5 }}
+            className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-[#131722] border border-white/10 rounded shadow-2xl z-50 pointer-events-none"
           >
-            <p className="text-[10px] text-gray-300 leading-tight font-sans">
+            <p className="text-[10px] text-gray-300 leading-tight font-sans whitespace-normal text-center">
               {content}
             </p>
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-[#131722]" />
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-8 border-transparent border-b-[#131722]" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -421,7 +421,7 @@ function StockChart({ ticker, currentMonth, history, currentPrice, height = "h-8
   return (
     <div className={cn(height, "w-full bg-[#050505] rounded-none border border-[#1a1a1a] shadow-2xl relative overflow-hidden font-mono")}>
       <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 pointer-events-none">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 pointer-events-auto">
           <div className="flex items-center gap-2 bg-[#131722] p-1 px-2 border border-white/10 rounded-sm">
             <div className={cn("w-2 h-2 rounded-full animate-pulse", lastIsUp ? "bg-[#22c55e]" : "bg-[#ef4444]")} />
             <span className="text-[10px] text-gray-300 uppercase tracking-[0.1em] font-bold">LIVE</span>
@@ -446,7 +446,7 @@ function StockChart({ ticker, currentMonth, history, currentPrice, height = "h-8
         </div>
         
         {data.length > 0 && (
-          <div className="flex items-center gap-3 bg-[#131722]/40 backdrop-blur-sm p-1 px-2 text-[10px] font-medium border border-white/5 rounded-sm">
+          <div className="flex items-center gap-3 bg-[#131722]/40 backdrop-blur-sm p-1 px-2 text-[10px] font-medium border border-white/5 rounded-sm pointer-events-auto">
             <div className="flex items-center gap-1">
               <span className="text-gray-500">O</span>
               <span className={lastIsUp ? "text-[#22c55e]" : "text-[#ef4444]"}>{data[data.length - 1].open.toFixed(2)}</span>
@@ -503,14 +503,32 @@ export default function App() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [focusTicker, setFocusTicker] = useState<keyof StockPrices>('AAPL');
   const [newRoomName, setNewRoomName] = useState("");
+  const [nickname, setNickname] = useState(localStorage.getItem('trader_nickname') || '');
   const [isLockingPassive, setIsLockingPassive] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(60);
+  const [leaderboard, setLeaderboard] = useState<UserPortfolio[]>([]);
 
   const gameStateRef = useRef<GameState | null>(null);
   useEffect(() => {
     gameStateRef.current = gameState;
   }, [gameState]);
+
+  useEffect(() => {
+    if (showGameOver && roomId && gameStateRef.current) {
+      const q = query(collection(db, 'rooms', roomId, 'portfolios'));
+      getDocs(q).then((snap) => {
+        const ports = snap.docs.map(doc => doc.data() as UserPortfolio);
+        const prices = gameStateRef.current!.prices;
+        ports.sort((a, b) => {
+          const aNet = a.cash + (a.shares.AAPL * prices.AAPL) + (a.shares.NVDA * prices.NVDA) + (a.shares.WMT * prices.WMT) + a.passiveFund;
+          const bNet = b.cash + (b.shares.AAPL * prices.AAPL) + (b.shares.NVDA * prices.NVDA) + (b.shares.WMT * prices.WMT) + b.passiveFund;
+          return bNet - aNet;
+        });
+        setLeaderboard(ports);
+      }).catch(e => console.error(e));
+    }
+  }, [showGameOver, roomId]);
 
   const isAdmin = useMemo(() => {
     if (!user || !roomId) return false;
@@ -604,6 +622,7 @@ export default function App() {
           uid: user.uid,
           roomId: roomId,
           email: user.email || '',
+          nickname: localStorage.getItem('trader_nickname') || '',
           cash: randomCapital,
           startingCapital: randomCapital,
           shares: { AAPL: 0, NVDA: 0, WMT: 0 },
@@ -1090,6 +1109,24 @@ export default function App() {
             </button>
           </div>
 
+          <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
+            <h2 className="text-lg font-bold mb-2 flex items-center gap-2 text-white">
+              Tvůj Nickname
+              <InfoTooltip content="Tento nickname se zobrazí všem ostatním hráčům na tabulce výsledků na konci hry." />
+            </h2>
+            <p className="text-xs text-gray-400 mb-4">Před připojením nebo vytvořením místnosti si musíš nastavit přezdívku.</p>
+            <input 
+              type="text" 
+              placeholder="Zadej svou přezdívku..."
+              value={nickname}
+              onChange={(e) => {
+                setNickname(e.target.value);
+                localStorage.setItem('trader_nickname', e.target.value);
+              }}
+              className="w-full max-w-sm bg-[#0a0a0a] border-2 border-[#2a2b2e] p-3 text-white focus:border-white outline-none transition-colors"
+            />
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Create Room */}
             <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-8 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
@@ -1108,10 +1145,10 @@ export default function App() {
                 />
                 <button 
                   onClick={handleCreateRoom}
-                  disabled={!newRoomName.trim()}
+                  disabled={!newRoomName.trim() || !nickname.trim()}
                   className="w-full bg-white text-black p-4 font-bold hover:bg-gray-200 transition-colors disabled:opacity-50"
                 >
-                  VYTVOŘIT MÍSTNOST
+                  {nickname.trim() ? 'VYTVOŘIT MÍSTNOST' : 'NASTAVTE NICKNAME'}
                 </button>
               </div>
             </div>
@@ -1131,15 +1168,16 @@ export default function App() {
                     <button 
                       key={room.id}
                       onClick={() => setRoomId(room.id)}
-                      className="w-full flex items-center justify-between bg-[#0a0a0a] border-2 border-[#2a2b2e] p-4 hover:border-white transition-all group"
+                      disabled={!nickname.trim()}
+                      className="w-full flex items-center justify-between bg-[#0a0a0a] border-2 border-[#2a2b2e] p-4 hover:border-white disabled:hover:border-[#2a2b2e] transition-all group disabled:opacity-50"
                     >
                       <div className="text-left">
-                        <div className="font-bold text-white group-hover:text-white">{room.name}</div>
+                        <div className="font-bold text-white group-hover:text-white disabled:group-hover:text-gray-400">{room.name}</div>
                         <div className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">
                           Vytvořeno {new Date(room.createdAt).toLocaleDateString()}
                         </div>
                       </div>
-                      <ChevronRight size={20} className="text-gray-500 group-hover:text-white" />
+                      <ChevronRight size={20} className="text-gray-500 group-hover:text-white disabled:group-hover:text-gray-500" />
                     </button>
                   ))
                 )}
@@ -1361,7 +1399,7 @@ export default function App() {
               </div>
 
               {/* Focus Mode Content */}
-              <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+              <div className="flex-1 flex flex-col lg:flex-row">
                 {/* Chart Area */}
                 <div className="flex-1 relative min-h-[300px] sm:min-h-0">
                   <StockChart 
@@ -1471,7 +1509,7 @@ export default function App() {
             )}>
           {/* Market Data */}
           <div className="space-y-6">
-            <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] overflow-hidden shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
+            <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
               <div className="bg-[#2a2b2e] text-white px-4 py-2 text-xs uppercase font-bold flex justify-between items-center">
                 <span>{isFocusMode ? "Přehled trhu (Režim soustředění)" : "Tržní ceny"}</span>
                 <span className="flex items-center gap-1 opacity-50"><History size={12} /> Živý přenos</span>
@@ -1599,7 +1637,7 @@ export default function App() {
           {/* Portfolio & Admin */}
           {!isFocusMode && (
             <div className="space-y-6">
-              <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-5 sm:p-8 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] relative overflow-hidden">
+              <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-5 sm:p-8 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] relative">
                 <div className="absolute top-0 right-0 bg-[#2a2b2e] text-white px-3 py-1 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest">Portfolio</div>
                 <div className="space-y-6 sm:space-y-8">
                   <div className="flex items-center gap-3 sm:gap-4">
@@ -1766,6 +1804,36 @@ export default function App() {
                         <div className="text-[10px] uppercase opacity-50">{t}</div>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                <div className="bg-[#0a0a0a] p-4 border-2 border-[#2a2b2e] mb-8 max-h-[250px] overflow-y-auto">
+                  <h3 className="font-bold uppercase text-xs mb-2 flex items-center justify-between text-yellow-500">
+                    SÍŇ SLÁVY (LEADERBOARD)
+                    <Trophy size={14} className="text-yellow-500" />
+                  </h3>
+                  <div className="space-y-2">
+                    {leaderboard.length === 0 ? (
+                      <div className="text-[10px] text-gray-500 italic text-center py-2">Načítání výsledků...</div>
+                    ) : (
+                      leaderboard.map((p, index) => {
+                        const netWorth = p.cash + (p.shares.AAPL * (gameState?.prices?.AAPL || 0)) + (p.shares.NVDA * (gameState?.prices?.NVDA || 0)) + (p.shares.WMT * (gameState?.prices?.WMT || 0)) + p.passiveFund;
+                        const isMe = p.uid === user?.uid;
+                        return (
+                          <div key={p.uid} className={cn("flex justify-between items-center p-2 text-sm border-b border-[#2a2b2e] last:border-0", isMe ? "bg-white/10 font-bold" : "")}>
+                            <div className="flex items-center gap-3">
+                              <span className={cn("text-xs w-4", index === 0 ? "text-yellow-500 font-black" : index === 1 ? "text-gray-300" : index === 2 ? "text-orange-400" : "text-gray-600")}>
+                                #{index + 1}
+                              </span>
+                              <span className={cn(isMe ? "text-white" : "text-gray-300")}>{p.nickname || p.email.split('@')[0]}</span>
+                            </div>
+                            <div className={cn("tabular-nums", netWorth >= p.startingCapital ? "text-[#22c55e]" : "text-[#ef4444]")}>
+                              ${netWorth.toLocaleString()}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 

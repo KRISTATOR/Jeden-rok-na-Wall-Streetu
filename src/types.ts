@@ -41,6 +41,7 @@ export interface UserPortfolio {
   uid: string;
   roomId: string;
   email: string;
+  nickname?: string;
   cash: number;
   startingCapital: number;
   shares: {
