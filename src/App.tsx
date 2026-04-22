@@ -503,6 +503,7 @@ export default function App() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [focusTicker, setFocusTicker] = useState<keyof StockPrices>('AAPL');
   const [newRoomName, setNewRoomName] = useState("");
+  const [roomPassword, setRoomPassword] = useState("");
   const [nickname, setNickname] = useState(localStorage.getItem('trader_nickname') || '');
   const [isLockingPassive, setIsLockingPassive] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -774,7 +775,13 @@ export default function App() {
   }, [isAdmin, roomId]);
 
   const handleCreateRoom = async () => {
-    if (!user || !newRoomName.trim()) return;
+    if (!user || !newRoomName.trim() || !nickname.trim()) return;
+    
+    if (roomPassword !== '150411KP') {
+      setError('Nesprávné heslo pro vytvoření místnosti.');
+      return;
+    }
+    setError(null);
     
     const initialState: GameState = {
       currentMonth: 0,
@@ -1168,9 +1175,16 @@ export default function App() {
                   onChange={(e) => setNewRoomName(e.target.value)}
                   className="w-full bg-[#0a0a0a] border-2 border-[#2a2b2e] p-4 text-white focus:border-white outline-none transition-colors"
                 />
+                <input 
+                  type="password" 
+                  placeholder="Heslo (povinné)"
+                  value={roomPassword}
+                  onChange={(e) => setRoomPassword(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border-2 border-[#2a2b2e] p-4 text-white focus:border-white outline-none transition-colors"
+                />
                 <button 
                   onClick={handleCreateRoom}
-                  disabled={!newRoomName.trim() || !nickname.trim()}
+                  disabled={!newRoomName.trim() || !nickname.trim() || !roomPassword.trim()}
                   className="w-full bg-white text-black p-4 font-bold hover:bg-gray-200 transition-colors disabled:opacity-50"
                 >
                   {nickname.trim() ? 'VYTVOŘIT MÍSTNOST' : 'NASTAVTE NICKNAME'}
