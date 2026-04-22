@@ -26,18 +26,18 @@ service cloud.firestore {
         request.resource.data.createdAt is number;
       
       allow update: if isAuthenticated() && (
-        // Creator can update anything (e.g. advance quarter)
+        // Creator/Admin can update anything (e.g. advance month, pause)
         resource.data.createdBy == request.auth.uid ||
-        // Others can only update prices via trade (this is a bit complex to enforce strictly without more functions, 
-        // but we'll allow it for now as long as it's a valid trade update)
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['gameState'])
+        isAdmin() ||
+        // Others can only update gameState as part of trades
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['gameState']))
       );
 
-      allow delete: if isAuthenticated() && resource.data.createdBy == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.createdBy == request.auth.uid || isAdmin());
 
       // Portfolios within a room
       match /portfolios/{userId} {
-        allow read: if isAuthenticated() && (request.auth.uid == userId || resource.data.createdBy == request.auth.uid);
+        allow read: if isAuthenticated();
         allow create: if isAuthenticated() && request.auth.uid == userId;
         allow update: if isAuthenticated() && request.auth.uid == userId;
       }

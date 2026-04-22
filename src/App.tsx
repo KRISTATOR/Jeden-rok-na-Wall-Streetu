@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -51,7 +51,8 @@ import {
   Plus,
   Users,
   ArrowLeft,
-  Info
+  Info,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeries } from 'lightweight-charts';
@@ -587,6 +588,10 @@ export default function App() {
         } else {
           setShowGameOver(false);
         }
+      } else {
+        // Room was deleted
+        setRoomId(null);
+        setError("Tato místnost již neexistuje (byla smazána správcem).");
       }
     }, (err: any) => {
       console.error('GameState Snapshot Error:', err);
@@ -597,13 +602,9 @@ export default function App() {
       }
     });
 
-    // Auto-delete room when admin leaves
+    // Stop listening when leaving
     return () => {
       unsub();
-      if (isCreator && roomId) {
-        // We use a separate async call to delete, but we don't await it in the cleanup
-        deleteDoc(doc(db, 'rooms', roomId)).catch(e => console.error("Failed to auto-delete room:", e));
-      }
     };
   }, [user, roomId]);
 
@@ -1120,6 +1121,27 @@ export default function App() {
     return `[ ${bars.padEnd(5, ' ')} ] $${MARKET_SCHEDULE[gameState.currentMonth].prices[ticker]}`;
   };
 
+  const handleDeleteRoom = async (id: string | null, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!id || !user) return;
+    
+    if (!window.confirm("Opravdu chcete tuto místnost definitivně smazat? Všechna data her budou ztracena.")) return;
+    
+    try {
+      const isCurrentRoom = id === roomId;
+      await deleteDoc(doc(db, 'rooms', id));
+      
+      if (isCurrentRoom) {
+        setRoomId(null);
+        setError(null);
+      }
+    } catch (err: any) {
+      console.error("Failed to delete room:", err);
+      setError(`Nepodařilo se smazat místnost: ${err.message || "Přesuňte se do lobby a zkuste to znovu."}`);
+    }
+  };
+
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] text-[#e0e0e0] flex items-center justify-center font-mono">Loading Simulation...</div>;
 
   if (!user) {
@@ -1227,20 +1249,31 @@ export default function App() {
                   <div className="text-center py-8 text-gray-600 italic">Nebyly nalezeny žádné aktivní místnosti.</div>
                 ) : (
                   rooms.map(room => (
-                    <button 
-                      key={room.id}
-                      onClick={() => setRoomId(room.id)}
-                      disabled={!nickname.trim()}
-                      className="w-full flex items-center justify-between bg-[#0a0a0a] border-2 border-[#2a2b2e] p-4 hover:border-white disabled:hover:border-[#2a2b2e] transition-all group disabled:opacity-50"
-                    >
-                      <div className="text-left">
-                        <div className="font-bold text-white group-hover:text-white disabled:group-hover:text-gray-400">{room.name}</div>
-                        <div className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">
-                          Vytvořeno {new Date(room.createdAt).toLocaleDateString()}
+                    <div key={room.id} className="relative group">
+                      <button 
+                        onClick={() => setRoomId(room.id)}
+                        disabled={!nickname.trim()}
+                        className="w-full flex items-center justify-between bg-[#0a0a0a] border-2 border-[#2a2b2e] p-4 hover:border-white disabled:hover:border-[#2a2b2e] transition-all disabled:opacity-50"
+                      >
+                        <div className="text-left pr-10">
+                          <div className="font-bold text-white group-hover:text-white disabled:group-hover:text-gray-400">{room.name}</div>
+                          <div className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">
+                            Vytvořeno {new Date(room.createdAt).toLocaleDateString()}
+                          </div>
                         </div>
-                      </div>
-                      <ChevronRight size={20} className="text-gray-500 group-hover:text-white disabled:group-hover:text-gray-500" />
-                    </button>
+                        <ChevronRight size={20} className="text-gray-500 group-hover:text-white disabled:group-hover:text-gray-500" />
+                      </button>
+                      
+                      {user && (room.createdBy === user.uid || (isAdmin && rooms.find(r => r.id === roomId)?.createdBy === user.uid)) && (
+                        <button 
+                          onClick={(e) => handleDeleteRoom(room.id, e)}
+                          title="Smazat místnost"
+                          className="absolute right-12 top-1/2 -translate-y-1/2 p-2 text-red-500 hover:bg-red-500/10 transition-colors z-20 pointer-events-auto"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </div>
                   ))
                 )}
               </div>
@@ -1291,6 +1324,14 @@ export default function App() {
                 {isFocusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                 <span className="hidden sm:inline">{isFocusMode ? "Zavřít detail" : "Detailní graf"}</span>
                 <span className="sm:hidden">{isFocusMode ? "Zavřít" : "Graf"}</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button 
+                onClick={(e) => handleDeleteRoom(roomId, e)}
+                className="flex items-center gap-2 text-red-500 hover:underline text-xs sm:text-sm opacity-70 hover:opacity-100 px-2 py-1"
+              >
+                <Trash2 size={16} /> <span className="hidden sm:inline">Smazat místnost</span>
               </button>
             )}
             <button onClick={handleLogout} className="flex items-center gap-2 hover:underline text-xs sm:text-sm opacity-70 hover:opacity-100 px-2 py-1">
