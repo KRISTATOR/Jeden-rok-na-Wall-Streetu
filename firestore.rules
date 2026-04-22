@@ -33,7 +33,11 @@ service cloud.firestore {
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['gameState']))
       );
 
-      allow delete: if isAuthenticated() && (resource.data.createdBy == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (
+        !('createdBy' in resource.data) ||
+        resource.data.createdBy == request.auth.uid || 
+        isAdmin()
+      );
 
       // Portfolios within a room
       match /portfolios/{userId} {

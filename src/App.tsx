@@ -501,6 +501,7 @@ export default function App() {
   const [portfolio, setPortfolio] = useState<UserPortfolio | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showGameOver, setShowGameOver] = useState(false);
+  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [focusTicker, setFocusTicker] = useState<keyof StockPrices>('AAPL');
@@ -1132,8 +1133,15 @@ export default function App() {
     e.stopPropagation();
     if (!id || !user) return;
     
-    if (!window.confirm("Opravdu chcete tuto místnost definitivně smazat? Všechna data her budou ztracena.")) return;
-    
+    // Zapněte UI potvrzení místo window.confirm (který v iframe často nefunguje)
+    setDeletingRoomId(id);
+  };
+
+  const confirmDeleteRoom = async () => {
+    if (!deletingRoomId || !user) return;
+    const id = deletingRoomId;
+    setDeletingRoomId(null);
+
     try {
       const isCurrentRoom = id === roomId;
       await deleteDoc(doc(db, 'rooms', id));
@@ -1146,6 +1154,10 @@ export default function App() {
       console.error("Failed to delete room:", err);
       setError(`Nepodařilo se smazat místnost: ${err.message || "Přesuňte se do lobby a zkuste to znovu."}`);
     }
+  };
+
+  const cancelDeleteRoom = () => {
+    setDeletingRoomId(null);
   };
 
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] text-[#e0e0e0] flex items-center justify-center font-mono">Loading Simulation...</div>;
@@ -1286,6 +1298,48 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {/* Delete Confirmation Modal for Lobby */}
+        <AnimatePresence>
+          {deletingRoomId && !roomId && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 border-[10px] border-[#0a0a0a]"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-[#1a1a1a] p-8 max-w-md w-full border-2 border-red-500 shadow-[8px_8px_0px_0px_rgba(239,68,68,0.2)]"
+              >
+                <div className="flex items-center gap-3 text-red-500 mb-4">
+                  <AlertCircle size={24} />
+                  <h2 className="text-xl font-black uppercase italic serif">Smazat místnost?</h2>
+                </div>
+                <p className="text-sm opacity-70 mb-6 leading-relaxed">
+                  Opravdu chcete tuto místnost definitivně smazat? Všechna data her budou ztracena. Tato akce je nevratná.
+                </p>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={confirmDeleteRoom}
+                    className="flex-1 bg-red-500 text-white py-3 font-bold hover:bg-red-600 transition-colors"
+                  >
+                    SMAZAT
+                  </button>
+                  <button 
+                    onClick={cancelDeleteRoom}
+                    className="flex-1 border-2 border-white text-white py-3 font-bold hover:bg-white/10 transition-colors"
+                  >
+                    ZRUŠIT
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </div>
     );
   }
@@ -2071,12 +2125,7 @@ export default function App() {
                   <h2 className="text-xl font-black uppercase italic serif">Opustit hru?</h2>
                 </div>
                 <p className="text-sm opacity-70 mb-6 leading-relaxed">
-                  Opravdu chcete tuto místnost opustit? 
-                  {isAdmin && (
-                    <span className="block mt-2 text-red-400 font-bold">
-                      Varování: Jako správce trvale smažete tuto místnost pro všechny.
-                    </span>
-                  )}
+                  Opravdu chcete tuto místnost opustit? Místnost bude dále běžet a můžete se do ní kdykoliv vrátit.
                 </p>
                 <div className="flex gap-4">
                   <button 
@@ -2090,6 +2139,47 @@ export default function App() {
                   </button>
                   <button 
                     onClick={() => setShowLeaveConfirm(false)}
+                    className="flex-1 border-2 border-white text-white py-3 font-bold hover:bg-white/10 transition-colors"
+                  >
+                    ZRUŠIT
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Delete Confirmation Modal for Inside Room */}
+        <AnimatePresence>
+          {deletingRoomId && roomId && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 border-[10px] border-[#0a0a0a]"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-[#1a1a1a] p-8 max-w-md w-full border-2 border-red-500 shadow-[8px_8px_0px_0px_rgba(239,68,68,0.2)]"
+              >
+                <div className="flex items-center gap-3 text-red-500 mb-4">
+                  <AlertCircle size={24} />
+                  <h2 className="text-xl font-black uppercase italic serif">Smazat místnost?</h2>
+                </div>
+                <p className="text-sm opacity-70 mb-6 leading-relaxed">
+                  Opravdu chcete tuto místnost definitivně smazat? Všechna data her budou ztracena pro všechny hráče. Tato akce je nevratná.
+                </p>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={confirmDeleteRoom}
+                    className="flex-1 bg-red-500 text-white py-3 font-bold hover:bg-red-600 transition-colors"
+                  >
+                    SMAZAT
+                  </button>
+                  <button 
+                    onClick={cancelDeleteRoom}
                     className="flex-1 border-2 border-white text-white py-3 font-bold hover:bg-white/10 transition-colors"
                   >
                     ZRUŠIT
