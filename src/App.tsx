@@ -65,7 +65,8 @@ import {
   INITIAL_CAPITAL_MIN, 
   INITIAL_CAPITAL_MAX, 
   PASSIVE_FUND_RETURN, 
-  TRADING_FEE 
+  TRADING_FEE,
+  ADMINS
 } from './constants';
 
 function InfoTooltip({ content }: { content: string }) {
@@ -538,6 +539,11 @@ export default function App() {
     const room = rooms.find(r => r.id === roomId);
     return room?.createdBy === user.uid;
   }, [user, roomId, rooms]);
+
+  const isGlobalAdmin = useMemo(() => {
+    if (!user) return false;
+    return ADMINS.includes(user.email || '');
+  }, [user]);
 
   // Reset locking state when room changes
   useEffect(() => {
@@ -1264,7 +1270,7 @@ export default function App() {
                         <ChevronRight size={20} className="text-gray-500 group-hover:text-white disabled:group-hover:text-gray-500" />
                       </button>
                       
-                      {user && (room.createdBy === user.uid || (isAdmin && rooms.find(r => r.id === roomId)?.createdBy === user.uid)) && (
+                      {user && (room.createdBy === user.uid || isGlobalAdmin) && (
                         <button 
                           onClick={(e) => handleDeleteRoom(room.id, e)}
                           title="Smazat místnost"
@@ -1326,7 +1332,7 @@ export default function App() {
                 <span className="sm:hidden">{isFocusMode ? "Zavřít" : "Graf"}</span>
               </button>
             )}
-            {isAdmin && (
+            {(isAdmin || isGlobalAdmin) && (
               <button 
                 onClick={(e) => handleDeleteRoom(roomId, e)}
                 className="flex items-center gap-2 text-red-500 hover:underline text-xs sm:text-sm opacity-70 hover:opacity-100 px-2 py-1"
