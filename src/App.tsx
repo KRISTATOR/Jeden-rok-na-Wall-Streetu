@@ -503,7 +503,6 @@ export default function App() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [focusTicker, setFocusTicker] = useState<keyof StockPrices>('AAPL');
   const [newRoomName, setNewRoomName] = useState("");
-  const [roomPassword, setRoomPassword] = useState("");
   const [nickname, setNickname] = useState(localStorage.getItem('trader_nickname') || '');
   const [isLockingPassive, setIsLockingPassive] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -575,7 +574,18 @@ export default function App() {
         setRooms([]);
         return;
       }
-      const r = Object.keys(data).map(k => {
+      
+      const now = Date.now();
+      const EXPIRATION_TIME = 6 * 60 * 60 * 1000; // 6 hodin
+
+      const r = Object.keys(data).filter(k => {
+        const item = data[k];
+        if (now - item.createdAt > EXPIRATION_TIME) {
+          remove(ref(db, `rooms/${k}`)).catch(e => console.error("Auto-cleanup failed:", e));
+          return false;
+        }
+        return true;
+      }).map(k => {
         const item = data[k];
         if (item.gameState?.history) {
            for (const t of ['AAPL', 'NVDA', 'WMT']) {
@@ -835,10 +845,6 @@ export default function App() {
   const handleCreateRoom = async () => {
     if (!user || !newRoomName.trim() || !nickname.trim()) return;
     
-    if (roomPassword !== '150411KP') {
-      setError('Nesprávné heslo pro vytvoření místnosti.');
-      return;
-    }
     setError(null);
     
     const initialState: GameState = {
@@ -1295,16 +1301,9 @@ export default function App() {
                   onChange={(e) => setNewRoomName(e.target.value)}
                   className="w-full bg-[#0a0a0a] border-2 border-[#2a2b2e] p-4 text-white focus:border-white outline-none transition-colors"
                 />
-                <input 
-                  type="password" 
-                  placeholder="Heslo (povinné)"
-                  value={roomPassword}
-                  onChange={(e) => setRoomPassword(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border-2 border-[#2a2b2e] p-4 text-white focus:border-white outline-none transition-colors"
-                />
                 <button 
                   onClick={handleCreateRoom}
-                  disabled={!newRoomName.trim() || !nickname.trim() || !roomPassword.trim()}
+                  disabled={!newRoomName.trim() || !nickname.trim()}
                   className="w-full bg-white text-black p-4 font-bold hover:bg-gray-200 transition-colors disabled:opacity-50"
                 >
                   {nickname.trim() ? 'VYTVOŘIT MÍSTNOST' : 'NASTAVTE NICKNAME'}
