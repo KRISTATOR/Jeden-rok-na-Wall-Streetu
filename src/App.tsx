@@ -1483,8 +1483,18 @@ export default function App() {
                         >
                           PRODAT 1 ks
                         </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
+                        <button 
+                          onClick={() => handleTrade(focusTicker, 10)}
+                          className="bg-green-600/40 border border-green-600 text-green-500 py-2 sm:py-3 font-bold hover:bg-green-600/50 active:scale-95 transition-all uppercase text-[9px] sm:text-[10px]"
+                        >
+                          KOUPIT 10 ks
+                        </button>
+                        <button 
+                          onClick={() => handleTrade(focusTicker, -10)}
+                          className="bg-red-600/40 border border-red-600 text-red-500 py-2 sm:py-3 font-bold hover:bg-red-600/50 active:scale-95 transition-all uppercase text-[9px] sm:text-[10px]"
+                        >
+                          PRODAT 10 ks
+                        </button>
                         <button 
                           onClick={() => handleMaxBuy(focusTicker)}
                           className="bg-green-600/20 border border-green-600 text-green-500 py-2 sm:py-3 font-bold hover:bg-green-600/30 active:scale-95 transition-all uppercase text-[9px] sm:text-[10px]"
@@ -1637,6 +1647,18 @@ export default function App() {
                           className="w-full border-2 border-[#2a2b2e] py-2.5 sm:py-2 text-[10px] sm:text-xs font-bold hover:bg-white/10 active:scale-95 transition-all"
                         >
                           PRODAT 1
+                        </button>
+                        <button 
+                          onClick={() => handleTrade(ticker, 10)}
+                          className="w-full bg-white/80 text-black py-2.5 sm:py-2 text-[10px] sm:text-xs font-bold hover:bg-gray-200 active:scale-95 transition-all"
+                        >
+                          KOUPIT 10
+                        </button>
+                        <button 
+                          onClick={() => handleTrade(ticker, -10)}
+                          className="w-full border-2 border-[#2a2b2e] py-2.5 sm:py-2 text-[10px] sm:text-xs font-bold hover:bg-white/10 active:scale-95 transition-all"
+                        >
+                          PRODAT 10
                         </button>
                         <button 
                           onClick={() => handleMaxBuy(ticker)}
