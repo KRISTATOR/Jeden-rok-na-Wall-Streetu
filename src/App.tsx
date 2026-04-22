@@ -7,22 +7,18 @@ import {
   User 
 } from 'firebase/auth';
 import { 
-  doc, 
-  onSnapshot, 
-  setDoc, 
-  updateDoc, 
-  getDocs,
-  collection,
-  increment,
-  arrayUnion,
+  ref, 
+  onValue, 
+  set, 
+  update, 
+  get, 
+  push,
+  remove, 
+  increment, 
+  serverTimestamp, 
   query,
-  where,
-  orderBy,
-  limit,
-  addDoc,
-  deleteDoc,
-  serverTimestamp
-} from 'firebase/firestore';
+  orderByChild
+} from 'firebase/database';
 import { auth, db } from './lib/firebase';
 import { 
   GameState, 
@@ -522,9 +518,12 @@ export default function App() {
 
   useEffect(() => {
     if (showGameOver && roomId && gameStateRef.current) {
-      const q = query(collection(db, 'rooms', roomId, 'portfolios'));
-      getDocs(q).then((snap) => {
-        let ports = snap.docs.map(doc => doc.data() as UserPortfolio);
+      get(ref(db, `rooms/${roomId}/portfolios`)).then((snap) => {
+        const data = snap.val();
+        let ports = data ? (Object.values(data) as any[]).map(p => ({
+          ...p,
+          trades: p.trades ? Object.values(p.trades) : []
+        })) as UserPortfolio[] : [];
         const room = rooms.find(r => r.id === roomId);
         if (room?.createdBy) {
           ports = ports.filter(p => p.uid !== room.createdBy);
@@ -569,14 +568,29 @@ export default function App() {
   // Rooms List Listener
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'rooms'), orderBy('createdAt', 'desc'), limit(10));
-    return onSnapshot(q, (snap) => {
-      const r = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Room));
+    const q = query(ref(db, 'rooms'), orderByChild('createdAt'));
+    return onValue(q, (snap) => {
+      const data = snap.val();
+      if (!data) {
+        setRooms([]);
+        return;
+      }
+      const r = Object.keys(data).map(k => {
+        const item = data[k];
+        if (item.gameState?.history) {
+           for (const t of ['AAPL', 'NVDA', 'WMT']) {
+             if (item.gameState.history[t]) {
+               item.gameState.history[t] = Object.values(item.gameState.history[t]);
+             }
+           }
+        }
+        return { id: k, ...item } as Room;
+      }).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
       setRooms(r);
     }, (err: any) => {
       console.error('Rooms Snapshot Error:', err);
-      if (err.code === 'resource-exhausted') {
-        setError('Google Cloud Infrastructure Block: Your current database instance was created as a "Free Tier Edition" and cannot scale, even though you have the Blaze plan enabled. Please delete and recreate the database in Firebase Console.');
+      if (err?.message?.includes('permission_denied')) {
+        setError('Google Cloud Infrastructure Block: Please wait or verify database rules.');
       }
     });
   }, [user]);
@@ -590,12 +604,20 @@ export default function App() {
 
     let isCreator = false;
 
-    const unsub = onSnapshot(doc(db, 'rooms', roomId), (snap) => {
+    const unsub = onValue(ref(db, `rooms/${roomId}`), (snap) => {
       if (snap.exists()) {
-        const data = snap.data() as Room;
-        setGameState(data.gameState);
+        const data = snap.val() as Room;
+        let processedGameState = data.gameState || null;
+        if (processedGameState?.history) {
+           for (const t of ['AAPL', 'NVDA', 'WMT']) {
+             if (processedGameState.history[t as keyof StockPrices]) {
+               processedGameState.history[t as keyof StockPrices] = Object.values(processedGameState.history[t as keyof StockPrices]);
+             }
+           }
+        }
+        setGameState(processedGameState);
         isCreator = data.createdBy === user.uid;
-        if (data.gameState.currentMonth === 11) {
+        if (processedGameState?.currentMonth === 11) {
           setShowGameOver(true);
         } else {
           setShowGameOver(false);
@@ -607,10 +629,8 @@ export default function App() {
       }
     }, (err: any) => {
       console.error('GameState Snapshot Error:', err);
-      if (err.code === 'permission-denied') {
+      if (err?.message?.includes('permission_denied')) {
         setError('Market data access denied.');
-      } else if (err.code === 'resource-exhausted') {
-        setError('Google Cloud Infrastructure Block: Your current database instance was created as a "Free Tier Edition" and cannot scale, even though you have the Blaze plan enabled. You must delete this specific database instance in the Firebase Console and click Create Database again to unlock your Blaze limits.');
       }
     });
 
@@ -627,9 +647,11 @@ export default function App() {
       return;
     }
 
-    const unsub = onSnapshot(doc(db, 'rooms', roomId, 'portfolios', user.uid), (snap) => {
+    const unsub = onValue(ref(db, `rooms/${roomId}/portfolios/${user.uid}`), (snap) => {
       if (snap.exists()) {
-        setPortfolio(snap.data() as UserPortfolio);
+        const data = snap.val();
+        if (data.trades) data.trades = Object.values(data.trades);
+        setPortfolio(data as UserPortfolio);
       } else {
         // Initialize portfolio in this room
         const room = rooms.find(r => r.id === roomId);
@@ -647,23 +669,26 @@ export default function App() {
           isPassiveLocked: false,
           trades: []
         };
-        setDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), initialPortfolio).catch((err: any) => {
-          if (err.code === 'resource-exhausted') setError('Google Cloud Infrastructure Block: Your current database instance was created as a "Free Tier Edition" and cannot scale, even though you have the Blaze plan enabled. Please delete and recreate the database in Firebase Console.');
+        set(ref(db, `rooms/${roomId}/portfolios/${user.uid}`), initialPortfolio).catch((err: any) => {
+           console.error(err);
         });
       }
     }, (err: any) => {
       console.error('Portfolio Snapshot Error:', err);
-      if (err.code === 'resource-exhausted') {
-        setError('Google Cloud Infrastructure Block: Your current database instance was created as a "Free Tier Edition" and cannot scale, even though you have the Blaze plan enabled. Please delete and recreate the database in Firebase Console.');
-      } else if (err.code === 'permission-denied') {
+      if (err?.message?.includes('permission_denied')) {
         setError('Portfolio access denied.');
       }
     });
-    const unsubAll = onSnapshot(collection(db, 'rooms', roomId, 'portfolios'), (snap) => {
+    const unsubAll = onValue(ref(db, `rooms/${roomId}/portfolios`), (snap) => {
       const ports: Record<string, UserPortfolio> = {};
-      snap.forEach(d => {
-        ports[d.id] = d.data() as UserPortfolio;
-      });
+      const data = snap.val();
+      if (data) {
+        Object.keys(data).forEach(k => {
+          const p = data[k];
+          if (p.trades) p.trades = Object.values(p.trades);
+          ports[k] = p as UserPortfolio;
+        });
+      }
       setAllPortfolios(ports);
     }, (err: any) => {
       console.error('All Portfolios Snapshot Error:', err);
@@ -686,12 +711,12 @@ export default function App() {
       const updatedDividends = { ...(portfolio.isDividendPaid || {}), [month]: true };
       
       if (dividend > 0) {
-        updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), {
+        update(ref(db, `rooms/${roomId}/portfolios/${user.uid}`), {
           cash: portfolio.cash + dividend,
           isDividendPaid: updatedDividends
         });
       } else {
-        updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), { isDividendPaid: updatedDividends });
+        update(ref(db, `rooms/${roomId}/portfolios/${user.uid}`), { isDividendPaid: updatedDividends });
       }
     }
 
@@ -699,13 +724,13 @@ export default function App() {
     if (gameState.currentMonth === 11 && !portfolio.isFinalPaid) {
       const finalReturn = portfolio.passiveFund * (1 + PASSIVE_FUND_RETURN);
       if (finalReturn > 0) {
-        updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), {
+        update(ref(db, `rooms/${roomId}/portfolios/${user.uid}`), {
           cash: portfolio.cash + finalReturn,
           passiveFund: 0,
           isFinalPaid: true
         });
       } else {
-        updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), { isFinalPaid: true });
+        update(ref(db, `rooms/${roomId}/portfolios/${user.uid}`), { isFinalPaid: true });
       }
     }
   }, [gameState?.currentMonth, portfolio?.uid, roomId]);
@@ -792,13 +817,13 @@ export default function App() {
           high: Math.round((Math.max(open, nextPrice) + (Math.random() * candleWickWiden)) * 100) / 100,
           low: Math.round((Math.min(open, nextPrice) - (Math.random() * candleWickWiden)) * 100) / 100
         };
-
-        updates[`gameState.prices.${ticker}`] = nextPrice;
-        updates[`gameState.history.${ticker}`] = arrayUnion(newCandle);
+        const candleId = Date.now().toString() + Math.random().toString().slice(2, 6);
+        updates[`gameState/prices/${ticker}`] = nextPrice;
+        updates[`gameState/history/${ticker}/${candleId}`] = newCandle;
       });
 
       try {
-        await updateDoc(doc(db, 'rooms', roomId), updates);
+        await update(ref(db, `rooms/${roomId}`), updates);
       } catch (err) {
         console.error("Market heartbeat failed:", err);
       }
@@ -824,20 +849,21 @@ export default function App() {
       newsFlash: MARKET_SCHEDULE[0].state.newsFlash,
       prices: MARKET_SCHEDULE[0].prices,
       history: {
-        AAPL: [{ time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)) }],
-        NVDA: [{ time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)) }],
-        WMT: [{ time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)) }]
+        AAPL: { [Date.now() + 'AAPL']: { time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)) } } as any,
+        NVDA: { [Date.now() + 'NVDA']: { time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)) } } as any,
+        WMT: { [Date.now() + 'WMT']: { time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)) } } as any
       }
     };
 
-    const roomRef = await addDoc(collection(db, 'rooms'), {
+    const newRoomRef = push(ref(db, 'rooms'));
+    await set(newRoomRef, {
       name: newRoomName,
       createdBy: user.uid,
       createdAt: Date.now(),
       gameState: initialState
     });
 
-    setRoomId(roomRef.id);
+    if (newRoomRef.key) setRoomId(newRoomRef.key);
     setNewRoomName("");
   };
 
@@ -872,9 +898,9 @@ export default function App() {
 
     // Prevent double-triggering for the same month
     if (currentGameState.currentMonth >= 11) {
-      await updateDoc(doc(db, 'rooms', roomId), {
-        'gameState.isPaused': true,
-        'gameState.nextTickAt': null
+      await update(ref(db, `rooms/${roomId}`), {
+        'gameState/isPaused': true,
+        'gameState/nextTickAt': null
       });
       return;
     }
@@ -885,14 +911,14 @@ export default function App() {
     
     // Prepare updates for each ticker
     const updates: any = {
-      'gameState.currentMonth': nextM,
-      'gameState.sentiment': schedule.state.sentiment,
-      'gameState.newsFlash': randomNews,
-      'gameState.nextTickAt': Date.now() + 60000
+      'gameState/currentMonth': nextM,
+      'gameState/sentiment': schedule.state.sentiment,
+      'gameState/newsFlash': randomNews,
+      'gameState/nextTickAt': Date.now() + 60000
     };
 
     (['AAPL', 'NVDA', 'WMT'] as const).forEach(ticker => {
-      const tickerHistory = currentGameState.history?.[ticker] || [];
+      const tickerHistory = currentGameState.history?.[ticker] ? Object.values(currentGameState.history?.[ticker] as any) as CandleData[] : [];
       const lastCandle = tickerHistory[tickerHistory.length - 1];
       const currentPrice = currentGameState.prices[ticker] || (lastCandle ? lastCandle.close : 100);
       
@@ -905,6 +931,7 @@ export default function App() {
       // Use a slightly more dramatic high/low for month transitions
       const volatility = Math.abs(close - currentPrice) * 0.2 + 2;
       
+      const candleId = Date.now().toString() + Math.random().toString().slice(2, 6);
       const newCandle: CandleData = {
         time: Date.now() + Math.random() * 1000, // Ensure uniqueness and slight offset
         open: Number(currentPrice.toFixed(2)),
@@ -913,12 +940,12 @@ export default function App() {
         low: Number((Math.min(currentPrice, close) - (Math.random() * volatility)).toFixed(2))
       };
       
-      updates[`gameState.prices.${ticker}`] = close;
-      updates[`gameState.history.${ticker}`] = arrayUnion(newCandle);
+      updates[`gameState/prices/${ticker}`] = close;
+      updates[`gameState/history/${ticker}/${candleId}`] = newCandle;
     });
 
     try {
-      await updateDoc(doc(db, 'rooms', roomId), updates);
+      await update(ref(db, `rooms/${roomId}`), updates);
     } catch (err) {
       console.error("Failed to advance month:", err);
     }
@@ -929,18 +956,17 @@ export default function App() {
     
     if (!gameState.isPaused) {
       // Pausing
-      await updateDoc(doc(db, 'rooms', roomId), {
-        'gameState.isPaused': true,
-        'gameState.nextTickAt': null,
-        'gameState.remainingTime': timeLeft
+      await update(ref(db, `rooms/${roomId}`), {
+        'gameState/isPaused': true,
+        'gameState/nextTickAt': null,
+        'gameState/remainingTime': timeLeft
       });
     } else {
       // Resuming
       const rt = gameState.remainingTime || 60;
-      await updateDoc(doc(db, 'rooms', roomId), {
-        'gameState.isPaused': false,
-         // We might not need to keep remainingTime set, but it doesn't hurt
-        'gameState.nextTickAt': Date.now() + (rt * 1000)
+      await update(ref(db, `rooms/${roomId}`), {
+        'gameState/isPaused': false,
+        'gameState/nextTickAt': Date.now() + (rt * 1000)
       });
     }
   };
@@ -954,9 +980,9 @@ export default function App() {
       return;
     }
 
-    await updateDoc(doc(db, 'rooms', roomId), {
-      'gameState.isPaused': false,
-      'gameState.nextTickAt': Date.now() + 60000
+    await update(ref(db, `rooms/${roomId}`), {
+      'gameState/isPaused': false,
+      'gameState/nextTickAt': Date.now() + 60000
     });
   };
 
@@ -975,13 +1001,13 @@ export default function App() {
       newsFlash: MARKET_SCHEDULE[0].state.newsFlash,
       prices: MARKET_SCHEDULE[0].prices,
       history: {
-        AAPL: [{ time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)) }],
-        NVDA: [{ time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)) }],
-        WMT: [{ time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)) }]
+        AAPL: { [Date.now() + 'AAPL']: { time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.AAPL.toFixed(2)) } } as any,
+        NVDA: { [Date.now() + 'NVDA']: { time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.NVDA.toFixed(2)) } } as any,
+        WMT: { [Date.now() + 'WMT']: { time: Date.now(), open: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), high: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), low: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)), close: Number(MARKET_SCHEDULE[0].prices.WMT.toFixed(2)) } } as any
       }
     };
 
-    await updateDoc(doc(db, 'rooms', roomId), { gameState: initialState });
+    await update(ref(db, `rooms/${roomId}`), { gameState: initialState });
   };
 
   const handleTrade = async (ticker: keyof StockPrices, amount: number) => {
@@ -1013,10 +1039,12 @@ export default function App() {
         time: Date.now()
       };
       
-      await updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), {
+      const tradeId = Date.now().toString() + Math.random().toString().slice(2, 6);
+      
+      await update(ref(db, `rooms/${roomId}/portfolios/${user.uid}`), {
         cash: portfolio.cash - totalCost,
-        [`shares.${ticker}`]: portfolio.shares[ticker] + amount,
-        trades: arrayUnion(newTrade)
+        [`shares/${ticker}`]: portfolio.shares[ticker] + amount,
+        [`trades/${tradeId}`]: newTrade
       });
 
       const priceChange = PRICE_IMPACT * amount;
@@ -1031,16 +1059,17 @@ export default function App() {
       };
       
       // Update the price directly for immediate feedback
-      await updateDoc(doc(db, 'rooms', roomId), {
-        [`gameState.prices.${ticker}`]: newPrice,
-        [`gameState.history.${ticker}`]: arrayUnion(tradeCandle)
+      const candleId = Date.now().toString() + Math.random().toString().slice(2, 6);
+      await update(ref(db, `rooms/${roomId}`), {
+        [`gameState/prices/${ticker}`]: newPrice,
+        [`gameState/history/${ticker}/${candleId}`]: tradeCandle
       });
       
       // Pay the fee to the room creator
       const room = rooms.find(r => r.id === roomId);
       const roomCreatorId = room?.createdBy;
       if (roomCreatorId && roomCreatorId !== user.uid) {
-        await updateDoc(doc(db, 'rooms', roomId, 'portfolios', roomCreatorId), {
+        await update(ref(db, `rooms/${roomId}/portfolios/${roomCreatorId}`), {
           cash: increment(TRADING_FEE)
         }).catch(err => console.error("Failed to pay fee to creator:", err));
       }
@@ -1059,10 +1088,12 @@ export default function App() {
         time: Date.now()
       };
 
-      await updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), {
+      const tradeId = Date.now().toString() + Math.random().toString().slice(2, 6);
+
+      await update(ref(db, `rooms/${roomId}/portfolios/${user.uid}`), {
         cash: portfolio.cash + netProceeds,
-        [`shares.${ticker}`]: portfolio.shares[ticker] + amount,
-        trades: arrayUnion(newTrade)
+        [`shares/${ticker}`]: portfolio.shares[ticker] + amount,
+        [`trades/${tradeId}`]: newTrade
       });
 
       const priceChange = PRICE_IMPACT * amount; // amount is negative
@@ -1077,16 +1108,17 @@ export default function App() {
       };
 
       // Update the price directly for immediate feedback
-      await updateDoc(doc(db, 'rooms', roomId), {
-        [`gameState.prices.${ticker}`]: newPrice,
-        [`gameState.history.${ticker}`]: arrayUnion(tradeCandle)
+      const candleId = Date.now().toString() + Math.random().toString().slice(2, 6);
+      await update(ref(db, `rooms/${roomId}`), {
+        [`gameState/prices/${ticker}`]: newPrice,
+        [`gameState/history/${ticker}/${candleId}`]: tradeCandle
       });
       
       // Pay the fee to the room creator
       const room = rooms.find(r => r.id === roomId);
       const roomCreatorId = room?.createdBy;
       if (roomCreatorId && roomCreatorId !== user.uid) {
-        await updateDoc(doc(db, 'rooms', roomId, 'portfolios', roomCreatorId), {
+        await update(ref(db, `rooms/${roomId}/portfolios/${roomCreatorId}`), {
           cash: increment(TRADING_FEE)
         }).catch(err => console.error("Failed to pay fee to creator:", err));
       }
@@ -1112,7 +1144,7 @@ export default function App() {
       }
       setIsLockingPassive(true);
       try {
-        await updateDoc(doc(db, 'rooms', roomId, 'portfolios', user.uid), {
+        await update(ref(db, `rooms/${roomId}/portfolios/${user.uid}`), {
           cash: portfolio.cash - amount,
           passiveFund: portfolio.passiveFund + amount,
           isPassiveLocked: true
@@ -1133,8 +1165,8 @@ export default function App() {
     const schedule = MARKET_SCHEDULE[gameState.currentMonth];
     const randomNews = schedule.newsPool[Math.floor(Math.random() * schedule.newsPool.length)];
     
-    await updateDoc(doc(db, 'rooms', roomId), { 
-      'gameState.newsFlash': randomNews
+    await update(ref(db, `rooms/${roomId}`), { 
+      'gameState/newsFlash': randomNews
     });
   };
 
@@ -1169,7 +1201,7 @@ export default function App() {
 
     try {
       const isCurrentRoom = id === roomId;
-      await deleteDoc(doc(db, 'rooms', id));
+      await remove(ref(db, `rooms/${id}`));
       
       if (isCurrentRoom) {
         setRoomId(null);

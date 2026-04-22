@@ -1,8 +1,14 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getDatabase } from 'firebase/database';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Ensure databaseURL is present or construct a default guess if possible (though explicit is better)
+const config = {
+  ...firebaseConfig,
+  databaseURL: (firebaseConfig as any).databaseURL || `https://${firebaseConfig.projectId}-default-rtdb.europe-west1.firebasedatabase.app`
+};
+
+const app = initializeApp(config);
+export const db = getDatabase(app);
 export const auth = getAuth(app);
