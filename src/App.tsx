@@ -238,7 +238,7 @@ function StockChart({ ticker, currentMonth, history, currentPrice, height = "h-8
         autoScale: true,
         alignLabels: true,
         scaleMargins: {
-          top: 0.35,
+          top: 0.2,
           bottom: 0.2,
         },
       },
@@ -562,9 +562,19 @@ export default function App() {
       console.log('Auth state changed:', u ? `User: ${u.email}` : 'No user');
       setUser(u);
       setLoading(false);
-      if (u) setError(null);
+      if (u) {
+        setError(null);
+        if (!nickname && u.displayName) {
+          setNickname(u.displayName);
+          localStorage.setItem('trader_nickname', u.displayName);
+        } else if (!nickname && u.email) {
+          const name = u.email.split('@')[0];
+          setNickname(name);
+          localStorage.setItem('trader_nickname', name);
+        }
+      }
     });
-  }, []);
+  }, [nickname]);
 
   // Rooms List Listener
   useEffect(() => {
@@ -1340,7 +1350,7 @@ export default function App() {
                         <ChevronRight size={20} className="text-gray-500 group-hover:text-white disabled:group-hover:text-gray-500" />
                       </button>
                       
-                      {user && (room.createdBy === user.uid || isGlobalAdmin) && (
+                      {user && isGlobalAdmin && (
                         <button 
                           onClick={(e) => handleDeleteRoom(room.id, e)}
                           title="Smazat místnost"
@@ -1623,7 +1633,7 @@ export default function App() {
               {/* Focus Mode Content */}
               <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
                 {/* Chart Area */}
-                <div className="flex-1 relative min-h-[30vh] sm:min-h-[40vh] lg:min-h-0">
+                <div className="flex-1 relative min-h-[45vh] sm:min-h-[50vh] lg:min-h-0">
                   <StockChart 
                     ticker={focusTicker} 
                     currentMonth={gameState?.currentMonth ?? 0} 
