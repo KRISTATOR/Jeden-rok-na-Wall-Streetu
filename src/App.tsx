@@ -235,8 +235,10 @@ function StockChart({ ticker, currentMonth, history, currentPrice, height = "h-8
       rightPriceScale: {
         borderColor: 'rgba(197, 203, 206, 0.1)',
         visible: true,
+        autoScale: true,
+        alignLabels: true,
         scaleMargins: {
-          top: 0.2,
+          top: 0.35,
           bottom: 0.2,
         },
       },
@@ -1458,76 +1460,73 @@ export default function App() {
 
         {/* Market Status */}
         {!isFocusMode && (
-          <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-4 md:p-6 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]">
-              <h2 className="text-[10px] sm:text-xs uppercase opacity-50 mb-1 sm:mb-2 italic serif flex items-center">
+          <section className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
+            <div className="bg-[#1a1a1a] border md:border-2 border-[#2a2b2e] p-3 md:p-6 shadow-[2px_2px_0px_0px_rgba(255,255,255,0.02)] md:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]">
+              <h2 className="text-[9px] sm:text-[10px] md:text-xs uppercase opacity-50 mb-1 sm:mb-2 italic serif flex items-center">
                 Aktuální měsíc
                 <InfoTooltip content="Simulace probíhá po dobu 12 měsíců (leden až prosinec)." />
               </h2>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white uppercase tracking-tighter">
+              <div className="text-xl sm:text-2xl md:text-4xl font-bold text-white uppercase tracking-tighter truncate">
                 {MONTH_NAMES[gameState?.currentMonth ?? 0]}
               </div>
             </div>
-            <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-4 md:p-6 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)] flex flex-col justify-between min-h-[120px] md:min-h-0">
-              <h2 className="text-[10px] sm:text-xs uppercase opacity-50 mb-1 sm:mb-2 italic serif flex items-center">
+            <div className="bg-[#1a1a1a] border md:border-2 border-[#2a2b2e] p-3 md:p-6 shadow-[2px_2px_0px_0px_rgba(255,255,255,0.02)] md:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)] flex flex-col justify-between">
+              <h2 className="text-[9px] sm:text-[10px] md:text-xs uppercase opacity-50 mb-1 sm:mb-2 italic serif flex items-center">
                 Další měsíc za
                 <InfoTooltip content="Čas zbývající do konce aktuálního měsíce a přechodu na další." />
               </h2>
               <div className={cn(
-                "text-3xl sm:text-4xl md:text-5xl font-black tabular-nums",
+                "text-2xl sm:text-3xl md:text-5xl font-black tabular-nums",
                 timeLeft <= 10 ? "text-red-500 animate-pulse" : "text-white"
               )}>
                 {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
               </div>
               {isAdmin && (
-                <div className="flex gap-2 mt-3 sm:mt-4">
+                <div className="flex gap-2 mt-2 sm:mt-4">
                   {gameState?.nextTickAt ? (
                     <button 
                       onClick={handleTogglePause}
-                      className="flex-1 bg-white text-black text-[9px] sm:text-[10px] font-bold py-2 sm:py-1 hover:bg-gray-200 uppercase flex items-center justify-center gap-1"
+                      className="flex-1 bg-white text-black text-[8px] sm:text-[10px] font-bold py-1.5 sm:py-1 hover:bg-gray-200 uppercase flex items-center justify-center gap-1 leading-none"
                     >
-                      {gameState.isPaused ? 'Pokračovat' : 'Pozastavit'}
-                      <InfoTooltip content="Pozastaví nebo spustí časovač simulace." />
+                      {gameState.isPaused ? 'Další' : 'Pauza'}
                     </button>
                   ) : (
                     <button 
                       onClick={handleStartGame}
-                      className="flex-1 bg-green-600 text-white text-[9px] sm:text-[10px] font-bold py-2 sm:py-1 hover:bg-green-500 uppercase flex items-center justify-center gap-1"
+                      className="flex-1 bg-green-600 text-white text-[8px] sm:text-[10px] font-bold py-1.5 sm:py-1 hover:bg-green-500 uppercase flex items-center justify-center gap-1 leading-none"
                     >
                       Spustit
-                      <InfoTooltip content="Spustí simulaci prvního měsíce." />
                     </button>
                   )}
                   <button 
                     onClick={handleResetGame}
-                    className="flex-1 bg-red-900/20 border border-red-500 text-red-500 text-[9px] sm:text-[10px] font-bold py-2 sm:py-1 hover:bg-red-900/40 uppercase flex items-center justify-center gap-1"
+                    className="flex-1 bg-red-900/20 border border-red-500 text-red-500 text-[8px] sm:text-[10px] font-bold py-1.5 sm:py-1 hover:bg-red-900/40 uppercase flex items-center justify-center gap-1 leading-none"
                   >
-                    Restart Hry
-                    <InfoTooltip content="TOTO VYMAŽE VŠECHNO: Vynuluje hru a vrátí všechny hráče na začátek." />
+                    Reset
                   </button>
                 </div>
               )}
             </div>
             <div className={cn(
-              "border-2 border-[#2a2b2e] p-4 md:p-6 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]",
+              "border md:border-2 border-[#2a2b2e] p-3 md:p-6 shadow-[2px_2px_0px_0px_rgba(255,255,255,0.02)] md:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]",
               gameState?.sentiment === 'Bull' ? "bg-green-900/20 border-green-500/50" : gameState?.sentiment === 'Bear' ? "bg-red-900/20 border-red-500/50" : "bg-[#1a1a1a]"
             )}>
-              <h2 className="text-[10px] sm:text-xs uppercase opacity-50 mb-1 sm:mb-2 italic serif flex items-center">
+              <h2 className="text-[9px] sm:text-[10px] md:text-xs uppercase opacity-50 mb-1 sm:mb-2 italic serif flex items-center">
                 Nálada na trhu
                 <InfoTooltip content="Býčí trh (Bull) znamená rostoucí ceny, Medvědí trh (Bear) znamená klesající ceny." />
               </h2>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold flex items-center gap-2 text-white">
+              <div className="text-lg sm:text-2xl md:text-4xl font-bold flex items-center gap-2 text-white">
                 {gameState?.sentiment === 'Bull' ? 'Býčí' : gameState?.sentiment === 'Bear' ? 'Medvědí' : 'Neutrální'}
-                {gameState?.sentiment === 'Bull' && <TrendingUp size={24} className="text-green-500" />}
-                {gameState?.sentiment === 'Bear' && <TrendingDown size={24} className="text-red-500" />}
+                {gameState?.sentiment === 'Bull' && <TrendingUp size={20} className="text-green-500" />}
+                {gameState?.sentiment === 'Bear' && <TrendingDown size={20} className="text-red-500" />}
               </div>
             </div>
-            <div className="bg-[#1a1a1a] border-2 border-white p-4 md:p-6 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]">
-              <h2 className="text-[10px] sm:text-xs uppercase opacity-50 mb-1 sm:mb-2 italic serif text-white/50 flex items-center">
+            <div className="col-span-2 md:col-span-1 bg-[#1a1a1a] border md:border-2 border-white p-3 md:p-6 shadow-[2px_2px_0px_0px_rgba(255,255,255,0.05)] md:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]">
+              <h2 className="text-[9px] sm:text-[10px] md:text-xs uppercase opacity-50 mb-1 sm:mb-2 italic serif text-white/50 flex items-center">
                 Blesková zpráva
                 <InfoTooltip content="Aktuální událost, která může ovlivnit ceny akcií na trhu." />
               </h2>
-              <p className="text-xs sm:text-sm leading-tight italic font-bold text-white">"{gameState?.newsFlash}"</p>
+              <p className="text-[11px] sm:text-xs md:text-sm leading-tight italic font-bold text-white">"{gameState?.newsFlash}"</p>
             </div>
           </section>
         )}
@@ -1622,9 +1621,9 @@ export default function App() {
               </div>
 
               {/* Focus Mode Content */}
-              <div className="flex-1 flex flex-col lg:flex-row">
+              <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
                 {/* Chart Area */}
-                <div className="flex-1 relative min-h-[300px] sm:min-h-0">
+                <div className="flex-1 relative min-h-[30vh] sm:min-h-[40vh] lg:min-h-0">
                   <StockChart 
                     ticker={focusTicker} 
                     currentMonth={gameState?.currentMonth ?? 0} 
@@ -1638,14 +1637,10 @@ export default function App() {
                 </div>
 
                 {/* Focus Mode Sidebar */}
-                <div className="w-full lg:w-80 bg-[#1a1a1a] border-t lg:border-t-0 lg:border-l border-[#2a2b2e] p-4 sm:p-6 flex flex-col gap-6 sm:gap-8 overflow-y-auto">
-                  {!isAdmin && (
-                  <div>
-                    <h3 className="text-[10px] sm:text-xs uppercase opacity-50 mb-3 sm:mb-4 italic serif flex items-center">
-                      Obchodní panel
-                      <InfoTooltip content="Zde můžete provádět rychlé obchody s vybranou akcií." />
-                    </h3>
-                    <div className="space-y-3 sm:space-y-4">
+                <div className="w-full lg:w-80 bg-[#1a1a1a] border-t lg:border-t-0 lg:border-l border-[#2a2b2e] flex flex-col h-full lg:h-auto">
+                  {/* Scrollable Upper Content */}
+                  <div className="flex-1 p-4 sm:p-6 flex flex-col gap-6 sm:gap-8 overflow-y-auto">
+                    {!isAdmin && (
                       <div className="bg-[#0a0a0a] p-3 sm:p-4 border border-[#2a2b2e]">
                         <div className="text-[9px] sm:text-[10px] uppercase text-gray-500 mb-1 flex items-center">
                           Tržní cena
@@ -1653,77 +1648,82 @@ export default function App() {
                         </div>
                         <div className="text-2xl sm:text-3xl font-black text-white">${currentPrices?.[focusTicker].toFixed(2)}</div>
                       </div>
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        <button 
-                          onClick={() => handleTrade(focusTicker, 1)}
-                          className="bg-green-600 text-white py-3 sm:py-4 font-bold hover:bg-green-500 active:scale-95 transition-all uppercase text-[10px] sm:text-xs"
-                        >
-                          KOUPIT 1 ks
-                        </button>
-                        <button 
-                          onClick={() => handleTrade(focusTicker, -1)}
-                          className="bg-red-600 text-white py-3 sm:py-4 font-bold hover:bg-red-500 active:scale-95 transition-all uppercase text-[10px] sm:text-xs"
-                        >
-                          PRODAT 1 ks
-                        </button>
-                        <button 
-                          onClick={() => handleTrade(focusTicker, 10)}
-                          className="bg-green-600/40 border border-green-600 text-green-500 py-2 sm:py-3 font-bold hover:bg-green-600/50 active:scale-95 transition-all uppercase text-[9px] sm:text-[10px]"
-                        >
-                          KOUPIT 10 ks
-                        </button>
-                        <button 
-                          onClick={() => handleTrade(focusTicker, -10)}
-                          className="bg-red-600/40 border border-red-600 text-red-500 py-2 sm:py-3 font-bold hover:bg-red-600/50 active:scale-95 transition-all uppercase text-[9px] sm:text-[10px]"
-                        >
-                          PRODAT 10 ks
-                        </button>
+                    )}
+
+                    {!isAdmin && (
+                    <div className="flex-1">
+                      <h3 className="text-[10px] sm:text-xs uppercase opacity-50 mb-3 sm:mb-4 italic serif flex items-center">
+                        Podrobnosti o pozici
+                        <InfoTooltip content="Informace o vašem aktuálním vlastnictví této akcie." />
+                      </h3>
+                      <div className="space-y-3 sm:space-y-4">
+                        <div className="flex justify-between items-center border-b border-[#2a2b2e] pb-2">
+                          <span className="text-[10px] sm:text-xs text-gray-400 flex items-center">
+                            Celková hodnota
+                            <InfoTooltip content="Aktuální tržní hodnota všech vašich akcií této společnosti." />
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold text-white">
+                            ${((portfolio?.shares[focusTicker] || 0) * (currentPrices?.[focusTicker] || 0)).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-[#2a2b2e] pb-2">
+                          <span className="text-[10px] sm:text-xs text-gray-400 flex items-center">
+                            Průměrná nákupní cena
+                            <InfoTooltip content="Průměrná cena, za kterou jste tyto akcie nakoupili." />
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold text-white">$100.00</span>
+                        </div>
                       </div>
-                      <div className="text-[9px] sm:text-[10px] text-gray-500 text-center flex items-center justify-center gap-1">
-                        Poplatek: ${TRADING_FEE}
-                        <InfoTooltip content="Poplatek za každou provedenou transakci (nákup i prodej)." />
+                    </div>
+                    )}
+
+                    <div className="bg-yellow-600/10 border border-yellow-600/50 p-3 sm:p-4">
+                      <div className="text-[9px] sm:text-[10px] uppercase text-yellow-500 font-bold mb-1 flex items-center">
+                        Nálada na trhu
+                        <InfoTooltip content="Býčí trh (Bull) znamená rostoucí ceny, Medvědí trh (Bear) znamená klesající ceny." />
                       </div>
+                      <div className="text-base sm:text-lg font-black text-white italic serif">
+                        {gameState?.sentiment === 'Bull' ? 'Býčí' : gameState?.sentiment === 'Bear' ? 'Medvědí' : 'Neutrální'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sticky Bottom Trading Panel (Only for Players) */}
+                  {!isAdmin && gameState && gameState.currentMonth < 11 && (
+                  <div className="bg-[#1a1a1a] sm:bg-[#0a0a0a] border-t border-[#2a2b2e] p-4 lg:p-6 sticky bottom-0 z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <button 
+                        onClick={() => handleTrade(focusTicker, 1)}
+                        className="bg-green-600 text-white py-3 sm:py-4 font-bold hover:bg-green-500 active:scale-95 transition-all uppercase text-[10px] sm:text-xs"
+                      >
+                        KOUPIT 1 ks
+                      </button>
+                      <button 
+                        onClick={() => handleTrade(focusTicker, -1)}
+                        className="bg-red-600 text-white py-3 sm:py-4 font-bold hover:bg-red-500 active:scale-95 transition-all uppercase text-[10px] sm:text-xs"
+                      >
+                        PRODAT 1 ks
+                      </button>
+                      <button 
+                        onClick={() => handleTrade(focusTicker, 10)}
+                        className="bg-green-600/40 border border-green-600 text-green-500 py-2 sm:py-3 font-bold hover:bg-green-600/50 active:scale-95 transition-all uppercase text-[9px] sm:text-[10px]"
+                      >
+                        KOUPIT 10 ks
+                      </button>
+                      <button 
+                        onClick={() => handleTrade(focusTicker, -10)}
+                        className="bg-red-600/40 border border-red-600 text-red-500 py-2 sm:py-3 font-bold hover:bg-red-600/50 active:scale-95 transition-all uppercase text-[9px] sm:text-[10px]"
+                      >
+                        PRODAT 10 ks
+                      </button>
+                    </div>
+                    <div className="text-[9px] sm:text-[10px] text-gray-500 text-center flex items-center justify-center gap-1">
+                      Poplatek: ${TRADING_FEE}
+                      <InfoTooltip content="Poplatek za každou provedenou transakci (nákup i prodej)." />
                     </div>
                   </div>
                   )}
 
-                  {!isAdmin && (
-                  <div className="flex-1">
-                    <h3 className="text-[10px] sm:text-xs uppercase opacity-50 mb-3 sm:mb-4 italic serif flex items-center">
-                      Podrobnosti o pozici
-                      <InfoTooltip content="Informace o vašem aktuálním vlastnictví této akcie." />
-                    </h3>
-                    <div className="space-y-3 sm:space-y-4">
-                      <div className="flex justify-between items-center border-b border-[#2a2b2e] pb-2">
-                        <span className="text-[10px] sm:text-xs text-gray-400 flex items-center">
-                          Celková hodnota
-                          <InfoTooltip content="Aktuální tržní hodnota všech vašich akcií této společnosti." />
-                        </span>
-                        <span className="text-xs sm:text-sm font-bold text-white">
-                          ${((portfolio?.shares[focusTicker] || 0) * (currentPrices?.[focusTicker] || 0)).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center border-b border-[#2a2b2e] pb-2">
-                        <span className="text-[10px] sm:text-xs text-gray-400 flex items-center">
-                          Průměrná nákupní cena
-                          <InfoTooltip content="Průměrná cena, za kterou jste tyto akcie nakoupili." />
-                        </span>
-                        <span className="text-xs sm:text-sm font-bold text-white">$100.00</span>
-                      </div>
-                    </div>
-                  </div>
-                  )}
-
-                  <div className="bg-yellow-600/10 border border-yellow-600/50 p-3 sm:p-4">
-                    <div className="text-[9px] sm:text-[10px] uppercase text-yellow-500 font-bold mb-1 flex items-center">
-                      Nálada na trhu
-                      <InfoTooltip content="Býčí trh (Bull) znamená rostoucí ceny, Medvědí trh (Bear) znamená klesající ceny." />
-                    </div>
-                    <div className="text-base sm:text-lg font-black text-white italic serif">
-                      {gameState?.sentiment === 'Bull' ? 'Býčí' : gameState?.sentiment === 'Bear' ? 'Medvědí' : 'Neutrální'}
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1858,65 +1858,12 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
-              {/* 2x2 Grid for Charts & Overview */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {(['AAPL', 'NVDA', 'WMT'] as const).map((ticker) => {
-                  const price = currentPrices?.[ticker] ?? 100;
-                  const prevPrice = gameState && gameState.currentMonth > 0 
-                    ? MARKET_SCHEDULE[gameState.currentMonth - 1].prices[ticker] 
-                    : 100;
-                  const diff = price - prevPrice;
-
-                  return (
-                    <div 
-                      key={ticker} 
-                      className="bg-[#1a1a1a] border-2 border-[#2a2b2e] shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] flex flex-col group hover:border-gray-500 transition-colors cursor-pointer"
-                      onClick={() => { setFocusTicker(ticker); setIsFocusMode(true); }}
-                    >
-                      <div className="p-4 flex items-center justify-between border-b-2 border-[#2a2b2e]">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-white text-black flex items-center justify-center font-bold text-lg">
-                            {ticker[0]}
-                          </div>
-                          <div>
-                            <div className="font-bold text-white flex items-center">
-                              {ticker}
-                              {ticker === 'WMT' && (
-                                <InfoTooltip content="WMT vyplácí dividendu $2 každý měsíc za každou drženou akcii." />
-                              )}
-                            </div>
-                            <div className="text-[10px] text-gray-500 uppercase tracking-widest px-1.5 py-0.5 bg-[#2a2b2e]/50 inline-block mt-0.5 rounded-sm">
-                              {portfolio?.shares[ticker] || 0} Ks
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xl font-bold text-white">${price.toFixed(2)}</div>
-                          <div className={cn(
-                            "text-xs font-bold flex items-center justify-end gap-1",
-                            diff > 0 ? "text-green-500" : diff < 0 ? "text-red-500" : "text-gray-500"
-                          )}>
-                            {diff > 0 ? '+' : ''}{diff.toFixed(2)} {diff !== 0 && (diff > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />)}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="w-full flex-1 p-4">
-                        <StockChart 
-                          ticker={ticker} 
-                          currentMonth={gameState?.currentMonth ?? 0} 
-                          history={gameState?.history || {}}
-                          currentPrice={currentPrices?.[ticker] || 100}
-                          height="h-48"
-                          trades={portfolio?.trades}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-
+            <div className="flex flex-col lg:flex-row gap-6">
+              
+              {/* === LEFT COLUMN ON DESKTOP, TOP COLUMN ON MOBILE (Overview) === */}
+              <div className="w-full lg:w-[350px] xl:w-[400px] flex flex-col gap-6 order-1 lg:order-2">
                 {/* OVERVIEW WINDOW */}
-                <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] p-5 sm:p-6 flex flex-col">
+                <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)] sm:shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] p-5 sm:p-6 flex flex-col">
                   <h2 className="text-lg font-bold mb-4 flex items-center justify-between text-white uppercase tracking-wider">
                     <span>Váš Přehled</span>
                     <Wallet size={20} className="text-gray-500" />
@@ -1929,12 +1876,12 @@ export default function App() {
                           <InfoTooltip content="Součet vaší hotovosti, hodnoty držených akcií a prostředků v pasivním fondu." />
                         </div>
                         <div className="flex items-baseline gap-3">
-                          <div className="text-3xl font-black text-white">
+                          <div className="text-3xl sm:text-4xl font-black text-white">
                             ${((portfolio?.cash || 0) + (portfolio?.passiveFund || 0) + Object.entries((portfolio?.shares as Record<string, number>) || {}).reduce((acc, [t, q]) => acc + q * (currentPrices?.[t as keyof StockPrices] || 0), 0)).toLocaleString(undefined, {maximumFractionDigits: 0})}
                           </div>
                           {portfolio && (
                             <div className={cn(
-                              "text-sm font-bold", 
+                              "text-sm font-bold bg-[#0a0a0a] px-2 py-1 border border-[#2a2b2e]", 
                               (((portfolio.cash || 0) + (portfolio.passiveFund || 0) + Object.entries((portfolio.shares as Record<string, number>) || {}).reduce((acc, [t, q]) => acc + q * (currentPrices?.[t as keyof StockPrices] || 0), 0)) - portfolio.startingCapital) >= 0 ? "text-green-500" : "text-red-500"
                             )}>
                               {(((portfolio.cash || 0) + (portfolio.passiveFund || 0) + Object.entries((portfolio.shares as Record<string, number>) || {}).reduce((acc, [t, q]) => acc + q * (currentPrices?.[t as keyof StockPrices] || 0), 0)) - portfolio.startingCapital) >= 0 ? '+' : ''}
@@ -1944,25 +1891,25 @@ export default function App() {
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="p-3 bg-[#0a0a0a] border border-[#2a2b2e]">
-                          <div className="text-[9px] uppercase text-gray-500 mb-1">{isAdmin ? "Vybrané poplatky" : "Dostupná hotovost"}</div>
-                          <div className="text-xl font-bold text-white">${portfolio?.cash.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+                        <div className="p-3 bg-[#0a0a0a] border border-[#2a2b2e] flex flex-col justify-center">
+                          <div className="text-[9px] uppercase text-gray-500 mb-1 leading-tight">{isAdmin ? "Vybrané poplatky" : "Dostupná hotovost"}</div>
+                          <div className="text-lg sm:text-xl font-bold text-white">${portfolio?.cash.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
                         </div>
                         {!isAdmin && (
-                        <div className="p-3 bg-[#0a0a0a] border border-[#2a2b2e]">
-                           <div className="text-[9px] uppercase text-gray-500 mb-1">Pasivní fond (+8%)</div>
-                           <div className="text-xl font-bold text-blue-400">${portfolio?.passiveFund.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+                        <div className="p-3 bg-[#0a0a0a] border border-[#2a2b2e] flex flex-col justify-center">
+                           <div className="text-[9px] uppercase text-gray-500 mb-1 leading-tight">Pasivní fond (+8%)</div>
+                           <div className="text-lg sm:text-xl font-bold text-blue-400">${portfolio?.passiveFund.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
                         </div>
                         )}
                       </div>
                       {!isAdmin && (
                       <div className="pt-4 border-t-2 border-[#2a2b2e] border-dashed">
-                        <div className="text-[10px] uppercase text-gray-500 mb-2">Rozvržení aktiv</div>
+                        <div className="text-[10px] uppercase text-gray-500 mb-3">Rozvržení aktiv</div>
                         <div className="space-y-2">
                           {(['AAPL', 'NVDA', 'WMT'] as const).map(ticker => (
                             <div key={ticker} className="flex justify-between items-center text-xs">
                               <span className="font-bold text-gray-300">{ticker}</span>
-                              <span className="text-white bg-[#2a2b2e] px-2 py-0.5 rounded-sm">{portfolio?.shares[ticker] || 0} ks</span>
+                              <span className="text-white bg-[#2a2b2e] px-2 py-1 rounded-sm">{portfolio?.shares[ticker] || 0} ks</span>
                             </div>
                           ))}
                         </div>
@@ -1970,13 +1917,107 @@ export default function App() {
                       )}
                     </div>
                 </div>
+
+                {/* Passive Fund Window */}
+                {!isAdmin && gameState && gameState.currentMonth === 0 ? (
+                  <div className="bg-blue-900/10 border-2 border-blue-500/30 p-4 sm:p-6 shadow-[4px_4px_0px_0px_rgba(59,130,246,0.05)] flex flex-col justify-center">
+                    <h3 className="text-[10px] sm:text-xs uppercase text-blue-400 mb-2 italic serif flex items-center">
+                      Termínovaný Pasivní fond
+                      <InfoTooltip content="Garantovaný výnos 8 % na konci roku. Prostředky jsou však uzamčeny a nelze je vybrat dříve." />
+                    </h3>
+                    <p className="text-[11px] sm:text-xs text-blue-200/50 mb-4">Uzamkněte kapitál pro garantovaný výnos 8 % na konci Q4. Lze investovat pouze nyní (V lednu).</p>
+                    
+                    {!portfolio?.isPassiveLocked ? (
+                      <div className="space-y-3">
+                        <button 
+                          onClick={() => handleLockPassive(Math.floor((portfolio?.startingCapital || 10000) * 0.25))}
+                          disabled={isLockingPassive || (portfolio && portfolio.cash < (portfolio.startingCapital * 0.25))}
+                          className="w-full bg-blue-600 text-white py-3 sm:py-4 text-[10px] sm:text-xs font-bold hover:bg-blue-500 active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          UZAMKNOUT 25% (${Math.floor((portfolio?.startingCapital || 10000) * 0.25).toLocaleString()})
+                        </button>
+                        <button 
+                          onClick={() => handleLockPassive(Math.floor((portfolio?.startingCapital || 10000) * 0.5))}
+                          disabled={isLockingPassive || (portfolio && portfolio.cash < (portfolio.startingCapital * 0.5))}
+                          className="w-full bg-blue-600 text-white py-3 sm:py-4 text-[10px] sm:text-xs font-bold hover:bg-blue-500 active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          UZAMKNOUT 50% (${Math.floor((portfolio?.startingCapital || 10000) * 0.5).toLocaleString()})
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-blue-900/40 border border-blue-500/50 text-center font-bold text-blue-300">
+                        Investováno ${portfolio?.passiveFund.toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                ) : !isAdmin && gameState && gameState.currentMonth > 0 ? (
+                  <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] opacity-50 p-4 sm:p-6 flex flex-col items-center justify-center text-center">
+                    <ShieldAlert size={24} className="mb-2 text-gray-600" />
+                    <h3 className="text-[10px] sm:text-xs uppercase text-gray-500 font-bold mb-1">Pasivní Fond Uzavřen</h3>
+                    <p className="text-[9px] sm:text-[10px] text-gray-600">Investice byla možná pouze v lednu.</p>
+                  </div>
+                ) : null}
               </div>
 
-              {/* Trading & Fund Controls */}
-              {gameState && gameState.currentMonth < 11 && (
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                  {/* Stock Trading Floor */}
-                  <div className="xl:col-span-2 bg-[#1a1a1a] border-2 border-[#2a2b2e] p-4 sm:p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
+              {/* === RIGHT COLUMN ON DESKTOP, BOTTOM COLUMN ON MOBILE (Charts & Trading) === */}
+              <div className="flex-1 flex flex-col gap-6 order-2 lg:order-1">
+                {(['AAPL', 'NVDA', 'WMT'] as const).map((ticker) => {
+                  const price = currentPrices?.[ticker] ?? 100;
+                  const prevPrice = gameState && gameState.currentMonth > 0 
+                    ? MARKET_SCHEDULE[gameState.currentMonth - 1].prices[ticker] 
+                    : 100;
+                  const diff = price - prevPrice;
+
+                  return (
+                    <div 
+                      key={ticker} 
+                      className="bg-[#1a1a1a] border-2 border-[#2a2b2e] shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)] flex flex-col group hover:border-gray-500 transition-colors cursor-pointer active:scale-[0.99]"
+                      onClick={() => { setFocusTicker(ticker); setIsFocusMode(true); }}
+                    >
+                      <div className="p-4 flex items-center justify-between border-b border-[#2a2b2e]">
+                        <div className="flex items-center gap-3 md:gap-4">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white text-black flex items-center justify-center font-bold text-lg sm:text-xl">
+                            {ticker[0]}
+                          </div>
+                          <div>
+                            <div className="font-bold text-white md:text-xl flex items-center">
+                              {ticker}
+                              {ticker === 'WMT' && (
+                                <InfoTooltip content="WMT vyplácí dividendu $2 každý měsíc za každou drženou akcii." />
+                              )}
+                            </div>
+                            <div className="text-[9px] sm:text-[10px] text-gray-500 uppercase tracking-widest px-1.5 py-0.5 bg-[#2a2b2e]/50 inline-block mt-0.5 rounded-sm">
+                              {portfolio?.shares[ticker] || 0} Ks
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right flex flex-col items-end">
+                          <div className="text-xl sm:text-2xl font-bold text-white">${price.toFixed(2)}</div>
+                          <div className={cn(
+                            "text-[10px] sm:text-xs font-bold flex items-center justify-end gap-1 px-2 py-0.5 mt-1 relative overflow-hidden",
+                            diff > 0 ? "text-green-400 bg-green-500/10" : diff < 0 ? "text-red-400 bg-red-500/10" : "text-gray-400 bg-gray-500/10"
+                          )}>
+                            {diff > 0 ? '+' : ''}{diff.toFixed(2)} {diff !== 0 && (diff > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="w-full h-32 sm:h-48 p-2 sm:p-4 pointer-events-none">
+                        <StockChart 
+                          ticker={ticker} 
+                          currentMonth={gameState?.currentMonth ?? 0} 
+                          history={gameState?.history || {}}
+                          currentPrice={currentPrices?.[ticker] || 100}
+                          height="h-full"
+                          trades={portfolio?.trades}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Stock Trading Floor */}
+                {!isAdmin && gameState && gameState.currentMonth < 11 && (
+                  <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-4 sm:p-6 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)] mt-4">
                     <h3 className="text-[10px] sm:text-xs uppercase opacity-50 mb-3 sm:mb-4 italic serif flex items-center">
                       Obchodní parket (Akcie)
                       <InfoTooltip content="Zde můžete nakupovat nebo prodávat akcie. Každý obchod stojí malý poplatek." />
@@ -1988,25 +2029,25 @@ export default function App() {
                           <div className="grid grid-cols-2 gap-2">
                             <button 
                               onClick={() => handleTrade(ticker, 1)}
-                              className="w-full bg-white text-black py-2 text-[10px] font-bold hover:bg-gray-200 active:scale-95 transition-all"
+                              className="w-full bg-white text-black py-2.5 sm:py-2 text-[10px] sm:text-[11px] font-bold hover:bg-gray-200 active:scale-95 transition-all"
                             >
                               Kup 1
                             </button>
                             <button 
                               onClick={() => handleTrade(ticker, -1)}
-                              className="w-full border border-white text-white py-2 text-[10px] font-bold hover:bg-white/10 active:scale-95 transition-all"
+                              className="w-full border border-white text-white py-2.5 sm:py-2 text-[10px] sm:text-[11px] font-bold hover:bg-white/10 active:scale-95 transition-all"
                             >
                               Prod 1
                             </button>
                             <button 
                               onClick={() => handleTrade(ticker, 10)}
-                              className="w-full bg-white/80 text-black py-2 text-[10px] font-bold hover:bg-gray-200 active:scale-95 transition-all"
+                              className="w-full bg-white/80 text-black py-2.5 sm:py-2 text-[10px] sm:text-[11px] font-bold hover:bg-gray-200 active:scale-95 transition-all"
                             >
                               Kup 10
                             </button>
                             <button 
                               onClick={() => handleTrade(ticker, -10)}
-                              className="w-full border border-gray-400 text-gray-300 py-2 text-[10px] font-bold hover:bg-white/10 active:scale-95 transition-all"
+                              className="w-full border border-gray-400 text-gray-300 py-2.5 sm:py-2 text-[10px] sm:text-[11px] font-bold hover:bg-white/10 active:scale-95 transition-all"
                             >
                               Prod 10
                             </button>
@@ -2014,52 +2055,13 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                    <div className="mt-4 text-[9px] text-gray-500 text-center">
+                    <div className="mt-4 text-[9px] sm:text-[10px] text-gray-500 text-center">
                       Poplatek za obchod (nákup/prodej): ${TRADING_FEE}
                     </div>
                   </div>
+                )}
+              </div>
 
-                  {/* Passive Fund Window */}
-                  {gameState?.currentMonth === 0 ? (
-                    <div className="bg-blue-900/10 border-2 border-blue-500/30 p-4 sm:p-6 shadow-[8px_8px_0px_0px_rgba(59,130,246,0.05)] flex flex-col justify-center">
-                      <h3 className="text-[10px] sm:text-xs uppercase text-blue-400 mb-2 italic serif flex items-center">
-                        Termínovaný Pasivní fond
-                        <InfoTooltip content="Garantovaný výnos 8 % na konci roku. Prostředky jsou však uzamčeny a nelze je vybrat dříve." />
-                      </h3>
-                      <p className="text-xs text-blue-200/50 mb-4">Uzamkněte kapitál pro garantovaný výnos 8 % na konci Q4. Lze investovat pouze nyní (V lednu).</p>
-                      
-                      {!portfolio?.isPassiveLocked ? (
-                        <div className="space-y-2">
-                          <button 
-                            onClick={() => handleLockPassive(Math.floor((portfolio?.startingCapital || 10000) * 0.25))}
-                            disabled={isLockingPassive || (portfolio && portfolio.cash < (portfolio.startingCapital * 0.25))}
-                            className="w-full bg-blue-600 text-white py-3 text-[10px] font-bold hover:bg-blue-500 active:scale-95 transition-all disabled:opacity-50"
-                          >
-                            UZAMKNOUT 25% (${Math.floor((portfolio?.startingCapital || 10000) * 0.25).toLocaleString()})
-                          </button>
-                          <button 
-                            onClick={() => handleLockPassive(Math.floor((portfolio?.startingCapital || 10000) * 0.5))}
-                            disabled={isLockingPassive || (portfolio && portfolio.cash < (portfolio.startingCapital * 0.5))}
-                            className="w-full bg-blue-600 text-white py-3 text-[10px] font-bold hover:bg-blue-500 active:scale-95 transition-all disabled:opacity-50"
-                          >
-                            UZAMKNOUT 50% (${Math.floor((portfolio?.startingCapital || 10000) * 0.5).toLocaleString()})
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="p-4 bg-blue-900/40 border border-blue-500/50 text-center font-bold text-blue-300">
-                          Investováno ${portfolio?.passiveFund.toLocaleString()}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] opacity-50 p-4 sm:p-6 flex flex-col items-center justify-center text-center">
-                      <ShieldAlert size={32} className="mb-2 text-gray-600" />
-                      <h3 className="text-xs uppercase text-gray-500 font-bold mb-1">Pasivní Fond Uzavřen</h3>
-                      <p className="text-[10px] text-gray-600">Investice byla možná pouze v lednu.</p>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
         </div>
