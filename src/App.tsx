@@ -633,13 +633,14 @@ export default function App() {
         if (processedGameState?.history) {
            for (const t of ['AAPL', 'NVDA', 'WMT']) {
              if (processedGameState.history[t as keyof StockPrices]) {
-               processedGameState.history[t as keyof StockPrices] = Object.values(processedGameState.history[t as keyof StockPrices]);
+               const arr = Object.values(processedGameState.history[t as keyof StockPrices]) as any[];
+               processedGameState.history[t as keyof StockPrices] = arr.sort((a, b) => a.time - b.time) as any;
              }
            }
         }
         setGameState(processedGameState);
         isCreator = data.createdBy === user.uid;
-        if (processedGameState?.currentMonth === 11) {
+        if (processedGameState?.isGameOver) {
           setShowGameOver(true);
         } else {
           setShowGameOver(false);
@@ -918,7 +919,8 @@ export default function App() {
     if (currentGameState.currentMonth >= 11) {
       await update(ref(db, `rooms/${roomId}`), {
         'gameState/isPaused': true,
-        'gameState/nextTickAt': null
+        'gameState/nextTickAt': null,
+        'gameState/isGameOver': true
       });
       return;
     }
@@ -970,7 +972,7 @@ export default function App() {
   };
 
   const handleTogglePause = async () => {
-    if (!isAdmin || !gameState || !roomId) return;
+    if (!isAdmin || !gameState || !roomId || gameState.isGameOver) return;
     
     if (!gameState.isPaused) {
       // Pausing
@@ -990,7 +992,7 @@ export default function App() {
   };
 
   const handleStartGame = async () => {
-    if (!isAdmin || !gameState || !roomId) return;
+    if (!isAdmin || !gameState || !roomId || gameState.isGameOver) return;
     
     // If it was paused during a month, resume it instead of resetting
     if (gameState.remainingTime) {
@@ -1028,9 +1030,53 @@ export default function App() {
     await update(ref(db, `rooms/${roomId}`), { gameState: initialState });
   };
 
+  const focusTickerStats = useMemo(() => {
+    if (!portfolio || !portfolio.trades) return { avgPrice: 0, totalInvested: 0, profit: 0, profitPct: 0 };
+    
+    let shares = 0;
+    let totalCost = 0;
+    
+    const sortedTrades = [...portfolio.trades].sort((a, b) => a.time - b.time);
+    
+    for (const trade of sortedTrades) {
+      if (trade.ticker === focusTicker) {
+        if (trade.amount > 0) {
+          shares += trade.amount;
+          totalCost += trade.amount * trade.price;
+        } else if (trade.amount < 0) {
+          if (shares > 0) {
+            const avgPrice = totalCost / shares;
+            shares += trade.amount;
+            totalCost = shares * avgPrice;
+          }
+        }
+      }
+    }
+    
+    const currentPrice = gameState?.prices?.[focusTicker] || 0;
+    const currentShares = portfolio?.shares[focusTicker] || 0;
+    const currentValue = currentShares * currentPrice;
+    
+    const profit = currentValue - totalCost;
+    const profitPct = totalCost > 0 ? (profit / totalCost) * 100 : 0;
+    
+    return {
+      avgPrice: shares > 0 ? totalCost / shares : 0,
+      totalInvested: totalCost,
+      currentValue: currentValue,
+      profit: profit,
+      profitPct: profitPct
+    };
+  }, [portfolio, focusTicker, gameState?.prices]);
+
   const handleTrade = async (ticker: keyof StockPrices, amount: number) => {
     if (!user || !portfolio || !gameState || !roomId) return;
     
+    if (gameState.isGameOver) {
+      setError('Simulace již skončila!');
+      return;
+    }
+
     if (gameState.isPaused) {
       if (!gameState.nextTickAt && gameState.currentMonth === 0) {
         setError('Nemůžete obchodovat, dokud správce nespustí simulaci!');
@@ -1673,7 +1719,7 @@ export default function App() {
                             <InfoTooltip content="Aktuální tržní hodnota všech vašich akcií této společnosti." />
                           </span>
                           <span className="text-xs sm:text-sm font-bold text-white">
-                            ${((portfolio?.shares[focusTicker] || 0) * (currentPrices?.[focusTicker] || 0)).toLocaleString()}
+                            ${focusTickerStats.currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </div>
                         <div className="flex justify-between items-center border-b border-[#2a2b2e] pb-2">
@@ -1681,7 +1727,25 @@ export default function App() {
                             Průměrná nákupní cena
                             <InfoTooltip content="Průměrná cena, za kterou jste tyto akcie nakoupili." />
                           </span>
-                          <span className="text-xs sm:text-sm font-bold text-white">$100.00</span>
+                          <span className="text-xs sm:text-sm font-bold text-white">${focusTickerStats.avgPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-[#2a2b2e] pb-2">
+                          <span className="text-[10px] sm:text-xs text-gray-400 flex items-center">
+                            Investováno
+                            <InfoTooltip content="Kolik reálných peněz v této pozici aktuálně máte." />
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold text-white">${focusTickerStats.totalInvested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-[#2a2b2e] pb-2">
+                          <span className="text-[10px] sm:text-xs text-gray-400 flex items-center">
+                            Zisk / Ztráta
+                            <InfoTooltip content="Váš relativní zisk/ztráta u této akcie." />
+                          </span>
+                          <span className={cn("text-xs sm:text-sm font-bold flex items-center gap-1", focusTickerStats.profit > 0 ? "text-green-500" : focusTickerStats.profit < 0 ? "text-red-500" : "text-white")}>
+                            {focusTickerStats.profit > 0 ? <TrendingUp size={14} /> : focusTickerStats.profit < 0 ? <TrendingDown size={14} /> : null}
+                            ${Math.abs(focusTickerStats.profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <span className="text-[10px] opacity-75">({focusTickerStats.profitPct > 0 ? '+' : ''}{focusTickerStats.profitPct.toFixed(2)}%)</span>
+                          </span>
                         </div>
                       </div>
                     </div>
