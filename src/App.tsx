@@ -1500,7 +1500,6 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-3 w-full md:w-auto">
-            {!isAdmin && (
               <button 
                 onClick={() => setIsFocusMode(!isFocusMode)}
                 className={cn(
@@ -1514,7 +1513,6 @@ export default function App() {
                 <span className="hidden sm:inline">{isFocusMode ? "Zavřít detail" : "Detailní graf"}</span>
                 <span className="sm:hidden">{isFocusMode ? "Zavřít" : "Graf"}</span>
               </button>
-            )}
             {(isAdmin || isGlobalAdmin) && (
               <button 
                 onClick={(e) => handleDeleteRoom(roomId, e)}
@@ -1939,6 +1937,37 @@ export default function App() {
                    );
                 })}
               </div>
+
+                {/* Stock Trading Floor (For Admin) */}
+                {gameState && !gameState.isGameOver && (
+                  <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-4 sm:p-6 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)] mt-4">
+                    <h3 className="text-[10px] sm:text-xs uppercase opacity-50 mb-3 sm:mb-4 italic serif flex items-center">
+                      Obchodní parket - Administrátorská Manipulace Trhem
+                      <InfoTooltip content="Zde můžete nakupovat nebo prodávat akcie jako velký hráč na trhu k manipulaci cenou. Limit je 100 nákupů od akcie za měsíc. Hodnota akcií se v průběhu mění a nezapočítává se do statistik vítězů." />
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {(['AAPL', 'NVDA', 'WMT'] as const).map((ticker) => (
+                        <div key={ticker} className="space-y-2 p-3 bg-[#0a0a0a] border border-[#2a2b2e]">
+                          <div className="text-center font-bold text-white mb-2">{ticker}</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button 
+                              onClick={() => handleTrade(ticker, 1)}
+                              className="w-full bg-white text-black py-2.5 sm:py-2 text-[10px] sm:text-[11px] font-bold hover:bg-gray-200 active:scale-95 transition-all"
+                            >
+                              KOUPIT (1)
+                            </button>
+                            <button 
+                              onClick={() => handleTrade(ticker, -1)}
+                              className="w-full bg-transparent border-2 border-white text-white py-2 sm:py-1.5 text-[10px] sm:text-[11px] font-bold hover:bg-white hover:text-black active:scale-95 transition-all"
+                            >
+                              PRODAT (1)
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
             </div>
           ) : (
             <div className="flex flex-col lg:flex-row gap-6">
