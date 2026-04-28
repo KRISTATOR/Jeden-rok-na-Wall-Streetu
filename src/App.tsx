@@ -508,6 +508,9 @@ export default function App() {
   const [focusTicker, setFocusTicker] = useState<keyof StockPrices>('AAPL');
   const [newRoomName, setNewRoomName] = useState("");
   const [gameLengthYears, setGameLengthYears] = useState(1);
+  const [blackSwanTicker, setBlackSwanTicker] = useState<keyof StockPrices>('AAPL');
+  const [blackSwanEffect, setBlackSwanEffect] = useState<number>(-30);
+  const [blackSwanNews, setBlackSwanNews] = useState<string>('');
   const [nickname, setNickname] = useState(localStorage.getItem('trader_nickname') || '');
   const [isLockingPassive, setIsLockingPassive] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -1075,6 +1078,39 @@ export default function App() {
       profitPct: profitPct
     };
   }, [portfolio, focusTicker, gameState?.prices]);
+
+  const handleBlackSwan = async () => {
+    if (!isAdmin || !gameState || !roomId) return;
+    
+    if (gameState.isGameOver) {
+      setError('Simulace již skončila!');
+      return;
+    }
+
+    const currentPrice = gameState.prices[blackSwanTicker] || 100;
+    const effectDecimals = blackSwanEffect / 100;
+    const priceChange = currentPrice * effectDecimals;
+    const newPrice = Math.max(1, Math.round((currentPrice + priceChange) * 100) / 100);
+
+    const eventCandle: CandleData = {
+      time: Date.now(),
+      open: currentPrice,
+      close: newPrice,
+      high: Math.max(currentPrice, newPrice),
+      low: Math.min(currentPrice, newPrice)
+    };
+    
+    const newsMessage = `🚨 BLACK SWAN EVENT: ${blackSwanNews || 'Neočekávaná událost na trhu!'}`;
+    
+    const candleId = Date.now().toString() + Math.random().toString().slice(2, 6);
+    await update(ref(db, `rooms/${roomId}`), {
+      [`gameState/prices/${blackSwanTicker}`]: newPrice,
+      [`gameState/history/${blackSwanTicker}/${candleId}`]: eventCandle,
+      [`gameState/newsFlash`]: newsMessage
+    });
+    
+    setBlackSwanNews(''); // Reset po odeslání
+  };
 
   const handleTrade = async (ticker: keyof StockPrices, amount: number) => {
     if (!user || !portfolio || !gameState || !roomId) return;
@@ -2038,6 +2074,54 @@ export default function App() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Black Swan Event Panel (For Admin) */}
+                {gameState && !gameState.isGameOver && (
+                  <div className="bg-[#1a1a1a] border-2 border-red-900/50 p-4 sm:p-6 shadow-[4px_4px_0px_0px_rgba(255,0,0,0.1)] mt-4">
+                    <h3 className="text-[10px] sm:text-xs uppercase text-red-500 opacity-80 mb-3 sm:mb-4 italic serif flex items-center">
+                      Black Swan Událost
+                      <InfoTooltip content="Tato funkce umožňuje poslat bleskovou zprávu a okamžitě změnit hodnotu vybrané akcie nezávisle na herním plánu (Černá labuť)." />
+                    </h3>
+                    <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                      <select 
+                        value={blackSwanTicker} 
+                        onChange={(e) => setBlackSwanTicker(e.target.value as keyof StockPrices)}
+                        className="bg-[#0a0a0a] border border-[#2a2b2e] text-white p-2 outline-none font-bold min-w-[100px]"
+                      >
+                        <option value="AAPL">AAPL</option>
+                        <option value="NVDA">NVDA</option>
+                        <option value="WMT">WMT</option>
+                      </select>
+
+                      <div className="flex items-center gap-2 bg-[#0a0a0a] border border-[#2a2b2e] px-2 min-w-[150px]">
+                        <span className="text-[10px] uppercase text-gray-500 font-bold whitespace-nowrap">Efekt (%)</span>
+                        <input 
+                          type="number" 
+                          value={blackSwanEffect}
+                          onChange={(e) => setBlackSwanEffect(Number(e.target.value))}
+                          className="bg-transparent text-white w-full text-right outline-none font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <input 
+                        type="text"
+                        placeholder="Znění bleskové zprávy (např. Skandál ve vedení!)..."
+                        value={blackSwanNews}
+                        onChange={(e) => setBlackSwanNews(e.target.value)}
+                        className="flex-1 bg-[#0a0a0a] border border-[#2a2b2e] p-2 text-white outline-none focus:border-red-500/50 transition-colors"
+                      />
+                      <button 
+                        onClick={handleBlackSwan}
+                        disabled={!blackSwanNews.trim()}
+                        className="bg-red-600/80 text-white font-bold py-2 px-6 hover:bg-red-500 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap uppercase tracking-wider text-[11px]"
+                      >
+                        Vyslat událost
+                      </button>
                     </div>
                   </div>
                 )}
