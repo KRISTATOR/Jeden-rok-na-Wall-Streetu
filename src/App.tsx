@@ -1031,7 +1031,11 @@ export default function App() {
   };
 
   const focusTickerStats = useMemo(() => {
-    if (!portfolio || !portfolio.trades) return { avgPrice: 0, totalInvested: 0, profit: 0, profitPct: 0 };
+    const currentPrice = gameState?.prices?.[focusTicker] || 0;
+    const currentShares = portfolio?.shares[focusTicker] || 0;
+    const currentValue = currentShares * currentPrice;
+
+    if (!portfolio || !portfolio.trades) return { avgPrice: 0, totalInvested: 0, currentValue, profit: 0, profitPct: 0 };
     
     let shares = 0;
     let totalCost = 0;
@@ -1052,10 +1056,6 @@ export default function App() {
         }
       }
     }
-    
-    const currentPrice = gameState?.prices?.[focusTicker] || 0;
-    const currentShares = portfolio?.shares[focusTicker] || 0;
-    const currentValue = currentShares * currentPrice;
     
     const profit = currentValue - totalCost;
     const profitPct = totalCost > 0 ? (profit / totalCost) * 100 : 0;
