@@ -17,7 +17,7 @@ export const ADMINS = [
   'kristianai2011@gmail.com'
 ];
 
-export const MARKET_SCHEDULE: Record<number, { prices: StockPrices; state: any; newsPool: string[] }> = {
+export const BASE_MARKET_SCHEDULE: Record<number, { prices: StockPrices; state: any; newsPool: string[] }> = {
   0: { 
     prices: { AAPL: 100, NVDA: 100, WMT: 100 }, 
     state: { sentiment: 'Neutral', newsFlash: 'Leden: Start nového roku! Trh je stabilní a plný očekávání.' }, 
@@ -79,3 +79,36 @@ export const MARKET_SCHEDULE: Record<number, { prices: StockPrices; state: any; 
     newsPool: ['Prosinec: Santa Claus rallye! Rok končí na maximech.', 'Závěrečné zúčtování roku. Gratulujeme vítězům!'] 
   }
 };
+
+export const MARKET_SCHEDULE: Record<number, { prices: StockPrices; state: any; newsPool: string[] }> = { ...BASE_MARKET_SCHEDULE };
+
+let lastPrices = { ...BASE_MARKET_SCHEDULE[11].prices };
+for (let i = 12; i < 120; i++) {
+  const monthIndex = i % 12;
+  const year = Math.floor(i / 12) + 1;
+  const trend = (i % 24 < 12) ? 1.05 : 0.96; // Bull vs bear year alternating
+  const pseudoRand = (seed: number) => {
+    const x = Math.sin(seed + 1) * 10000;
+    return x - Math.floor(x);
+  };
+  
+  lastPrices = {
+    AAPL: Math.max(10, lastPrices.AAPL * trend * (0.9 + pseudoRand(i*1) * 0.2)),
+    NVDA: Math.max(10, lastPrices.NVDA * trend * (0.85 + pseudoRand(i*2) * 0.3)),
+    WMT: Math.max(10, lastPrices.WMT * 1.01 * (0.95 + pseudoRand(i*3) * 0.1)),
+  };
+
+  MARKET_SCHEDULE[i] = {
+    prices: {
+      AAPL: Number(lastPrices.AAPL.toFixed(2)),
+      NVDA: Number(lastPrices.NVDA.toFixed(2)),
+      WMT: Number(lastPrices.WMT.toFixed(2))
+    },
+    state: { sentiment: trend > 1 ? 'Bull' : 'Bear', newsFlash: `${MONTH_NAMES[monthIndex]}: Rok ${year} pokračuje. Trh zažívá turbulentní období.` },
+    newsPool: [
+      `${MONTH_NAMES[monthIndex]}: Rok ${year} na trzích. Analytici reagují na nové události.`,
+      `Tržní zprávy pro ${MONTH_NAMES[monthIndex].toLowerCase()} naznačují možné změny trendu.`,
+      `Investoři sledují makroekonomická data pro rok ${year}.`
+    ]
+  };
+}

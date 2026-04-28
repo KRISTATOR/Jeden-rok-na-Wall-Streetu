@@ -13,7 +13,8 @@ export interface CandleData {
 }
 
 export interface GameState {
-  currentMonth: number; // 0 (Jan) to 11 (Dec)
+  currentMonth: number; // 0 (Jan) to (maxMonths - 1)
+  maxMonths?: number;
   isPaused: boolean;
   isGameOver?: boolean;
   nextTickAt: number | null; // Timestamp when the next month should start

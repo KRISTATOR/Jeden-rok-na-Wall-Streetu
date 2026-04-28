@@ -507,6 +507,7 @@ export default function App() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [focusTicker, setFocusTicker] = useState<keyof StockPrices>('AAPL');
   const [newRoomName, setNewRoomName] = useState("");
+  const [gameLengthYears, setGameLengthYears] = useState(1);
   const [nickname, setNickname] = useState(localStorage.getItem('trader_nickname') || '');
   const [isLockingPassive, setIsLockingPassive] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -864,6 +865,7 @@ export default function App() {
     
     const initialState: GameState = {
       currentMonth: 0,
+      maxMonths: gameLengthYears * 12,
       isPaused: true,
       nextTickAt: null,
       sentiment: MARKET_SCHEDULE[0].state.sentiment,
@@ -886,6 +888,7 @@ export default function App() {
 
     if (newRoomRef.key) setRoomId(newRoomRef.key);
     setNewRoomName("");
+    setGameLengthYears(1);
   };
 
   const handleLogin = async () => {
@@ -916,9 +919,11 @@ export default function App() {
   const handleNextMonth = async () => {
     const currentGameState = gameStateRef.current;
     if (!isAdmin || !currentGameState || !roomId) return;
+    
+    const maxMonths = currentGameState.maxMonths || 12;
 
     // Prevent double-triggering for the same month
-    if (currentGameState.currentMonth >= 11) {
+    if (currentGameState.currentMonth >= maxMonths - 1) {
       await update(ref(db, `rooms/${roomId}`), {
         'gameState/isPaused': true,
         'gameState/nextTickAt': null,
@@ -1256,9 +1261,12 @@ export default function App() {
 
   const renderASCIIChart = (ticker: keyof StockPrices) => {
     if (!gameState) return null;
-    const history = Array.from({ length: gameState.currentMonth + 1 }, (_, i) => MARKET_SCHEDULE[i].prices[ticker]);
-    const max = Math.max(...Object.values(MARKET_SCHEDULE).map(s => s.prices[ticker]));
-    const min = Math.min(...Object.values(MARKET_SCHEDULE).map(s => s.prices[ticker]));
+    const startIndex = Math.max(0, gameState.currentMonth - 23);
+    const history = Array.from({ length: gameState.currentMonth - startIndex + 1 }, (_, i) => MARKET_SCHEDULE[startIndex + i].prices[ticker]);
+    
+    // Only calculate max/min based on the displayed history for better scaling
+    const max = Math.max(...history);
+    const min = Math.min(...history);
     
     const bars = history.map(p => {
       const height = Math.round(((p - min) / (max - min || 1)) * 5);
@@ -1387,6 +1395,22 @@ export default function App() {
                   onChange={(e) => setNewRoomName(e.target.value)}
                   className="w-full bg-[#0a0a0a] border-2 border-[#2a2b2e] p-4 text-white focus:border-white outline-none transition-colors"
                 />
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs uppercase font-bold text-gray-500">Délka hry (roky): {gameLengthYears}</label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value={gameLengthYears}
+                    onChange={(e) => setGameLengthYears(parseInt(e.target.value))}
+                    className="w-full accent-white"
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-500 font-bold">
+                    <span>1 rok</span>
+                    <span>10 let</span>
+                  </div>
+                </div>
                 <button 
                   onClick={handleCreateRoom}
                   disabled={!newRoomName.trim() || !nickname.trim()}
@@ -1555,10 +1579,10 @@ export default function App() {
             <div className="bg-[#1a1a1a] border md:border-2 border-[#2a2b2e] p-3 md:p-6 shadow-[2px_2px_0px_0px_rgba(255,255,255,0.02)] md:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]">
               <h2 className="text-[9px] sm:text-[10px] md:text-xs uppercase opacity-50 mb-1 sm:mb-2 italic serif flex items-center">
                 Aktuální měsíc
-                <InfoTooltip content="Simulace probíhá po dobu 12 měsíců (leden až prosinec)." />
+                <InfoTooltip content={`Simulace probíhá po dobu ${gameState?.maxMonths || 12} měsíců.`} />
               </h2>
               <div className="text-xl sm:text-2xl md:text-4xl font-bold text-white uppercase tracking-tighter truncate">
-                {MONTH_NAMES[gameState?.currentMonth ?? 0]}
+                {MONTH_NAMES[(gameState?.currentMonth ?? 0) % 12]} {gameState?.maxMonths && gameState.maxMonths > 12 ? `'${Math.floor((gameState?.currentMonth ?? 0) / 12) + 1}` : ''}
               </div>
             </div>
             <div className="bg-[#1a1a1a] border md:border-2 border-[#2a2b2e] p-3 md:p-6 shadow-[2px_2px_0px_0px_rgba(255,255,255,0.02)] md:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)] flex flex-col justify-between">
@@ -1701,10 +1725,10 @@ export default function App() {
                   <div className="text-left sm:text-right">
                     <div className="text-[9px] sm:text-[10px] uppercase opacity-50 text-gray-400 flex items-center sm:justify-end">
                       Měsíc
-                      <InfoTooltip content="Simulace probíhá po dobu 12 měsíců (leden až prosinec)." />
+                      <InfoTooltip content={`Simulace probíhá po dobu ${gameState?.maxMonths || 12} měsíců.`} />
                     </div>
                     <div className="text-sm sm:text-xl font-bold text-white uppercase tracking-tighter">
-                      {MONTH_NAMES[gameState?.currentMonth ?? 0]}
+                      {MONTH_NAMES[(gameState?.currentMonth ?? 0) % 12]} {gameState?.maxMonths && gameState.maxMonths > 12 ? `'${Math.floor((gameState?.currentMonth ?? 0) / 12) + 1}` : ''}
                     </div>
                   </div>
                   <div className="text-right">
