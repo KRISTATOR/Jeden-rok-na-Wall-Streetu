@@ -31,6 +31,7 @@ import {
 import { cn } from './lib/utils';
 import { 
   TrendingUp, 
+  X,
   TrendingDown, 
   LogOut, 
   LogIn, 
@@ -500,6 +501,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [showGameOver, setShowGameOver] = useState(false);
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
+  const [insufficientFundsMessage, setInsufficientFundsMessage] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [focusTicker, setFocusTicker] = useState<keyof StockPrices>('AAPL');
@@ -1099,7 +1101,8 @@ export default function App() {
     if (amount > 0) { // Buy
       const totalCost = tradeValue + TRADING_FEE;
       if (portfolio.cash < totalCost) {
-        setError(`Nedostatek prostředků: Potřebujete $${totalCost.toLocaleString()} (včetně poplatku $${TRADING_FEE}). Máte pouze $${portfolio.cash.toLocaleString()}.`);
+        setInsufficientFundsMessage(`Nedostatek prostředků: Potřebujete $${totalCost.toLocaleString()} (včetně poplatku $${TRADING_FEE}). Máte pouze $${portfolio.cash.toLocaleString()}.`);
+        setTimeout(() => setInsufficientFundsMessage(null), 4000);
         return;
       }
       
@@ -1218,7 +1221,8 @@ export default function App() {
 
     if (amount > 0) {
       if (portfolio.cash < amount) {
-        setError('Nedostatek hotovosti!');
+        setInsufficientFundsMessage('Nedostatek hotovosti pro přidání do pasivního fondu!');
+        setTimeout(() => setInsufficientFundsMessage(null), 4000);
         return;
       }
       setIsLockingPassive(true);
@@ -1614,6 +1618,33 @@ export default function App() {
                 <span className="font-bold">{error}</span>
               </div>
               <button onClick={() => setError(null)} className="text-xs underline">Zavřít</button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Insufficient Funds Popup */}
+        <AnimatePresence>
+          {insufficientFundsMessage && (
+            <motion.div 
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#1a1a1a] border-2 border-red-500 p-4 shadow-[8px_8px_0px_0px_rgba(239,68,68,0.2)] max-w-md w-full"
+            >
+              <div className="flex items-start gap-4">
+                <div className="bg-red-500/20 p-2 rounded-full shrink-0">
+                  <Wallet size={24} className="text-red-500" />
+                </div>
+                <div>
+                  <h3 className="font-bold uppercase text-white tracking-widest text-sm mb-1">Nedostatek prostředků</h3>
+                  <p className="text-sm text-gray-400 leading-tight">
+                    {insufficientFundsMessage}
+                  </p>
+                </div>
+                <button onClick={() => setInsufficientFundsMessage(null)} className="ml-auto text-gray-500 hover:text-white mt-1">
+                  <X size={16} />
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
