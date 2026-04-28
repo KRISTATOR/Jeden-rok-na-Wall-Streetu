@@ -56,4 +56,11 @@ export interface UserPortfolio {
   isDividendPaid?: { [month: number]: boolean };
   isFinalPaid?: boolean;
   trades?: Trade[];
+  adminMonthlyBuys?: {
+    [month: number]: {
+      AAPL: number;
+      NVDA: number;
+      WMT: number;
+    }
+  };
 }

@@ -500,7 +500,6 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [showGameOver, setShowGameOver] = useState(false);
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
-  const [insufficientFundsMessage, setInsufficientFundsMessage] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [focusTicker, setFocusTicker] = useState<keyof StockPrices>('AAPL');
@@ -679,7 +678,7 @@ export default function App() {
         // Initialize portfolio in this room
         const room = rooms.find(r => r.id === roomId);
         const isRoomCreator = room?.createdBy === user.uid;
-        const randomCapital = isRoomCreator ? 0 : Math.floor(Math.random() * (INITIAL_CAPITAL_MAX - INITIAL_CAPITAL_MIN + 1)) + INITIAL_CAPITAL_MIN;
+        const randomCapital = isRoomCreator ? 1000000 : Math.floor(Math.random() * (INITIAL_CAPITAL_MAX - INITIAL_CAPITAL_MIN + 1)) + INITIAL_CAPITAL_MIN;
         const initialPortfolio: UserPortfolio = {
           uid: user.uid,
           roomId: roomId,
@@ -687,7 +686,7 @@ export default function App() {
           nickname: localStorage.getItem('trader_nickname') || '',
           cash: randomCapital,
           startingCapital: randomCapital,
-          shares: { AAPL: 0, NVDA: 0, WMT: 0 },
+          shares: isRoomCreator ? { AAPL: 500, NVDA: 500, WMT: 500 } : { AAPL: 0, NVDA: 0, WMT: 0 },
           passiveFund: 0,
           isPassiveLocked: false,
           trades: []
@@ -1086,13 +1085,21 @@ export default function App() {
       return;
     }
     
+    if (isAdmin && amount > 0) {
+      const currentMonthBuys = portfolio.adminMonthlyBuys?.[gameState.currentMonth]?.[ticker] || 0;
+      if (currentMonthBuys + amount > 100) {
+        setError(`Jako administrátor můžete nakoupit maximálně 100 akcií od každé firmy za měsíc. Tento měsíc jste již nakoupili ${currentMonthBuys} akcií ${ticker}.`);
+        return;
+      }
+    }
+    
     const currentPrice = gameState.prices[ticker] || 100;
     const tradeValue = currentPrice * Math.abs(amount);
 
     if (amount > 0) { // Buy
       const totalCost = tradeValue + TRADING_FEE;
       if (portfolio.cash < totalCost) {
-        setInsufficientFundsMessage(`Potřebujete $${totalCost.toLocaleString()} (včetně poplatku $${TRADING_FEE}). Aktuálně máte pouze $${portfolio.cash.toLocaleString()}.`);
+        setError(`Nedostatek prostředků: Potřebujete $${totalCost.toLocaleString()} (včetně poplatku $${TRADING_FEE}). Máte pouze $${portfolio.cash.toLocaleString()}.`);
         return;
       }
       
@@ -1105,11 +1112,18 @@ export default function App() {
       
       const tradeId = Date.now().toString() + Math.random().toString().slice(2, 6);
       
-      await update(ref(db, `rooms/${roomId}/portfolios/${user.uid}`), {
+      const updates: any = {
         cash: portfolio.cash - totalCost,
         [`shares/${ticker}`]: portfolio.shares[ticker] + amount,
         [`trades/${tradeId}`]: newTrade
-      });
+      };
+      
+      if (isAdmin) {
+        const currentMonthBuys = portfolio.adminMonthlyBuys?.[gameState.currentMonth]?.[ticker] || 0;
+        updates[`adminMonthlyBuys/${gameState.currentMonth}/${ticker}`] = currentMonthBuys + amount;
+      }
+      
+      await update(ref(db, `rooms/${roomId}/portfolios/${user.uid}`), updates);
 
       const priceChange = PRICE_IMPACT * amount;
       const newPrice = Math.max(1, Math.round((currentPrice + priceChange) * 100) / 100);
@@ -1192,6 +1206,7 @@ export default function App() {
 
   const handleLockPassive = async (amount: number) => {
     if (!user || !portfolio || !gameState || !roomId || isLockingPassive) return;
+    if (isAdmin) return;
     if (gameState.currentMonth > 0) {
       setError('Pasivní fond je k dispozici pouze v lednu.');
       return;
@@ -1659,12 +1674,11 @@ export default function App() {
                   </div>
                   <div className="text-left sm:text-right">
                     <div className="text-[9px] sm:text-[10px] uppercase opacity-50 text-gray-400 flex items-center sm:justify-end">
-                      {isAdmin ? 'Vybrané poplatky' : 'Hotovost'}
-                      <InfoTooltip content={isAdmin ? "Peníze vybrané z poplatků." : "Peníze, které můžete použít k nákupu akcií nebo vložení do pasivního fondu."} />
+                      {isAdmin ? 'Hotovost k obchodování' : 'Hotovost'}
+                      <InfoTooltip content={isAdmin ? "Peníze, za které můžete na trhu ovlivňovat kurzy akcií + vybrané poplatky z ostatních obchodů." : "Peníze, které můžete použít k nákupu akcií nebo vložení do pasivního fondu."} />
                     </div>
                     <div className="text-sm sm:text-xl font-bold text-white">${portfolio?.cash.toLocaleString()}</div>
                   </div>
-                  {!isAdmin && (
                   <div className="text-right">
                     <div className="text-[9px] sm:text-[10px] uppercase opacity-50 text-gray-400 flex items-center justify-end">
                       Akcie {focusTicker}
@@ -1672,7 +1686,6 @@ export default function App() {
                     </div>
                     <div className="text-sm sm:text-xl font-bold text-white">{portfolio?.shares[focusTicker] || 0}</div>
                   </div>
-                  )}
                 </div>
               </div>
 
@@ -1696,17 +1709,14 @@ export default function App() {
                 <div className="w-full lg:w-80 bg-[#1a1a1a] border-t lg:border-t-0 lg:border-l border-[#2a2b2e] flex flex-col h-full lg:h-auto">
                   {/* Scrollable Upper Content */}
                   <div className="flex-1 p-4 sm:p-6 flex flex-col gap-6 sm:gap-8 overflow-y-auto">
-                    {!isAdmin && (
                       <div className="bg-[#0a0a0a] p-3 sm:p-4 border border-[#2a2b2e]">
                         <div className="text-[9px] sm:text-[10px] uppercase text-gray-500 mb-1 flex items-center">
                           Tržní cena
                           <InfoTooltip content="Aktuální cena za jednu akcii na trhu." />
                         </div>
-                        <div className="text-2xl sm:text-3xl font-black text-white">${currentPrices?.[focusTicker].toFixed(2)}</div>
+                        <div className="text-2xl sm:text-3xl font-black text-white">${(currentPrices?.[focusTicker] || 100).toFixed(2)}</div>
                       </div>
-                    )}
 
-                    {!isAdmin && (
                     <div className="flex-1">
                       <h3 className="text-[10px] sm:text-xs uppercase opacity-50 mb-3 sm:mb-4 italic serif flex items-center">
                         Podrobnosti o pozici
@@ -1749,7 +1759,6 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                    )}
 
                     <div className="bg-yellow-600/10 border border-yellow-600/50 p-3 sm:p-4">
                       <div className="text-[9px] sm:text-[10px] uppercase text-yellow-500 font-bold mb-1 flex items-center">
@@ -1762,8 +1771,8 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Sticky Bottom Trading Panel (Only for Players) */}
-                  {!isAdmin && gameState && gameState.currentMonth < 11 && (
+                  {/* Sticky Bottom Trading Panel */}
+                  {gameState && !gameState.isGameOver && (
                   <div className="bg-[#1a1a1a] sm:bg-[#0a0a0a] border-t border-[#2a2b2e] p-4 lg:p-6 sticky bottom-0 z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
                     <div className="grid grid-cols-2 gap-2 mb-3">
                       <button 
@@ -1966,7 +1975,7 @@ export default function App() {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="p-3 bg-[#0a0a0a] border border-[#2a2b2e] flex flex-col justify-center">
-                          <div className="text-[9px] uppercase text-gray-500 mb-1 leading-tight">{isAdmin ? "Vybrané poplatky" : "Dostupná hotovost"}</div>
+                          <div className="text-[9px] uppercase text-gray-500 mb-1 leading-tight">Dostupná hotovost</div>
                           <div className="text-lg sm:text-xl font-bold text-white">${portfolio?.cash.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
                         </div>
                         {!isAdmin && (
@@ -1976,7 +1985,6 @@ export default function App() {
                         </div>
                         )}
                       </div>
-                      {!isAdmin && (
                       <div className="pt-4 border-t-2 border-[#2a2b2e] border-dashed">
                         <div className="text-[10px] uppercase text-gray-500 mb-3">Rozvržení aktiv</div>
                         <div className="space-y-2">
@@ -1988,7 +1996,6 @@ export default function App() {
                           ))}
                         </div>
                       </div>
-                      )}
                     </div>
                 </div>
 
@@ -2090,7 +2097,7 @@ export default function App() {
                 })}
 
                 {/* Stock Trading Floor */}
-                {!isAdmin && gameState && gameState.currentMonth < 11 && (
+                {gameState && !gameState.isGameOver && (
                   <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-4 sm:p-6 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)] mt-4">
                     <h3 className="text-[10px] sm:text-xs uppercase opacity-50 mb-3 sm:mb-4 italic serif flex items-center">
                       Obchodní parket (Akcie)
@@ -2339,39 +2346,6 @@ export default function App() {
         </AnimatePresence>
 
         {/* Insufficient Funds Modal */}
-        <AnimatePresence>
-          {insufficientFundsMessage && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 border-[10px] border-[#0a0a0a]"
-            >
-              <motion.div 
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.9, y: 20 }}
-                className="max-w-md w-full bg-[#1a1a1a] border-2 border-red-500 p-8 shadow-[12px_12px_0px_0px_rgba(239,68,68,0.2)] text-center"
-              >
-                <div className="flex justify-center mb-4">
-                  <div className="bg-red-500/20 p-4 rounded-full">
-                    <Wallet size={32} className="text-red-500" />
-                  </div>
-                </div>
-                <h2 className="text-2xl font-black uppercase italic serif text-white mb-2">Nedostatek prostředků</h2>
-                <p className="text-sm text-gray-400 mb-8 leading-relaxed">
-                  {insufficientFundsMessage}
-                </p>
-                <button 
-                  onClick={() => setInsufficientFundsMessage(null)}
-                  className="w-full bg-white text-black py-4 font-bold hover:bg-gray-200 transition-colors uppercase tracking-widest text-sm"
-                >
-                  ROZUMÍM
-                </button>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     );
   }
