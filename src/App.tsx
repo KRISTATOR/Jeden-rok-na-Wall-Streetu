@@ -55,6 +55,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeries } from 'lightweight-charts';
 import { useRef } from 'react';
 
+import QRCode from 'react-qr-code';
 import { 
   PRICE_IMPACT, 
   MARKET_SCHEDULE, 
@@ -1344,22 +1345,30 @@ export default function App() {
             </button>
           </div>
 
-          <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
-            <h2 className="text-lg font-bold mb-2 flex items-center gap-2 text-white">
-              Tvůj Nickname
-              <InfoTooltip content="Tento nickname se zobrazí všem ostatním hráčům na tabulce výsledků na konci hry." />
-            </h2>
-            <p className="text-xs text-gray-400 mb-4">Před připojením nebo vytvořením místnosti si musíš nastavit přezdívku.</p>
-            <input 
-              type="text" 
-              placeholder="Zadej svou přezdívku..."
-              value={nickname}
-              onChange={(e) => {
-                setNickname(e.target.value);
-                localStorage.setItem('trader_nickname', e.target.value);
-              }}
-              className="w-full max-w-sm bg-[#0a0a0a] border-2 border-[#2a2b2e] p-3 text-white focus:border-white outline-none transition-colors"
-            />
+          <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] flex flex-col md:flex-row gap-6 items-center justify-between">
+            <div className="flex-1 w-full">
+              <h2 className="text-lg font-bold mb-2 flex items-center gap-2 text-white">
+                Tvůj Nickname
+                <InfoTooltip content="Tento nickname se zobrazí všem ostatním hráčům na tabulce výsledků na konci hry." />
+              </h2>
+              <p className="text-xs text-gray-400 mb-4">Před připojením nebo vytvořením místnosti si musíš nastavit přezdívku.</p>
+              <input 
+                type="text" 
+                placeholder="Zadej svou přezdívku..."
+                value={nickname}
+                onChange={(e) => {
+                  setNickname(e.target.value);
+                  localStorage.setItem('trader_nickname', e.target.value);
+                }}
+                className="w-full max-w-sm bg-[#0a0a0a] border-2 border-[#2a2b2e] p-3 text-white focus:border-white outline-none transition-colors"
+              />
+            </div>
+            <div className="flex flex-col items-center gap-2 bg-[#0a0a0a] p-4 border-2 border-[#2a2b2e] shrink-0">
+              <div className="p-2 bg-white rounded-sm">
+                <QRCode value="https://jeden-rok-na-wall-streetu.vercel.app" size={100} level="L" />
+              </div>
+              <span className="text-[10px] uppercase font-bold text-gray-500">Naskenuj a hraj</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -1492,14 +1501,23 @@ export default function App() {
             >
               <ArrowLeft size={24} />
             </button>
-            <div className="flex-1">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-black italic serif uppercase tracking-tighter text-white leading-none">
-                {rooms.find(r => r.id === roomId)?.name || "Wall Street"}
-              </h1>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <span className="bg-white text-black px-2 py-0.5 text-[10px] sm:text-xs uppercase font-bold">Živá simulace</span>
-                <span className="text-[10px] sm:text-xs opacity-50 truncate max-w-[150px]">{user.email}</span>
-                {isAdmin && <span className="text-[9px] sm:text-[10px] bg-yellow-600 text-black px-1 font-bold">SPRÁVCE</span>}
+            <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-4">
+              <div>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-black italic serif uppercase tracking-tighter text-white leading-none">
+                  {rooms.find(r => r.id === roomId)?.name || "Wall Street"}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <span className="bg-white text-black px-2 py-0.5 text-[10px] sm:text-xs uppercase font-bold">Živá simulace</span>
+                  <span className="text-[10px] sm:text-xs opacity-50 truncate max-w-[150px]">{user.email}</span>
+                  {isAdmin && <span className="text-[9px] sm:text-[10px] bg-yellow-600 text-black px-1 font-bold">SPRÁVCE</span>}
+                </div>
+              </div>
+              
+              <div className="hidden sm:flex flex-col items-center gap-1 bg-[#1a1a1a] p-2 border-2 border-[#2a2b2e]">
+                <div className="p-1 bg-white rounded-sm">
+                  <QRCode value="https://jeden-rok-na-wall-streetu.vercel.app" size={48} level="L" />
+                </div>
+                <span className="text-[8px] uppercase font-bold text-gray-500 whitespace-nowrap">Naskenuj a hraj</span>
               </div>
             </div>
           </div>
