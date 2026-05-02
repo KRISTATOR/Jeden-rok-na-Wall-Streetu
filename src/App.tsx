@@ -49,7 +49,8 @@ import {
   Users,
   ArrowLeft,
   Info,
-  Trash2
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeries } from 'lightweight-charts';
@@ -501,6 +502,7 @@ export default function App() {
   const [portfolio, setPortfolio] = useState<UserPortfolio | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showGameOver, setShowGameOver] = useState(false);
+  const [blackSwanAlert, setBlackSwanAlert] = useState<string | null>(null);
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
   const [insufficientFundsMessage, setInsufficientFundsMessage] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
@@ -522,6 +524,13 @@ export default function App() {
   useEffect(() => {
     gameStateRef.current = gameState;
   }, [gameState]);
+
+  useEffect(() => {
+    if (gameState?.newsFlash?.startsWith('🚨 BLACK SWAN EVENT:')) {
+      const msg = gameState.newsFlash.replace('🚨 BLACK SWAN EVENT:', '').trim();
+      setBlackSwanAlert(msg);
+    }
+  }, [gameState?.newsFlash]);
 
   useEffect(() => {
     if (showGameOver && roomId && gameStateRef.current) {
@@ -2333,6 +2342,35 @@ export default function App() {
           )}
         </div>
       </div>
+
+      {/* Black Swan Alert */}
+      <AnimatePresence>
+        {blackSwanAlert && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 50 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 50 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <div className="max-w-xl w-full bg-red-950 border-4 border-red-600 p-8 shadow-[16px_16px_0px_0px_rgba(220,38,38,0.3)] relative">
+              <div className="absolute -top-6 -left-6 bg-red-600 border-4 border-white p-4 -rotate-12">
+                <AlertTriangle size={32} className="text-white" />
+              </div>
+              <h2 className="text-3xl font-black italic serif uppercase mb-4 text-white text-center">BLACK SWAN UDÁLOST</h2>
+              <p className="text-lg md:text-xl font-bold mb-8 text-center text-red-200 uppercase tracking-widest mt-8">
+                {blackSwanAlert}
+              </p>
+              
+              <button 
+                onClick={() => setBlackSwanAlert(null)}
+                className="w-full bg-red-600 text-white border-2 border-white py-4 font-black hover:bg-white hover:text-red-600 transition-colors uppercase tracking-widest text-lg"
+              >
+                Rozumím
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Game Over Summary */}
         <AnimatePresence>
