@@ -57,6 +57,7 @@ import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeri
 import { useRef } from 'react';
 
 import QRCode from 'react-qr-code';
+import HedgeFundManager from './HedgeFundManager';
 import { 
   PRICE_IMPACT, 
   MARKET_SCHEDULE, 
@@ -496,6 +497,7 @@ function StockChart({ ticker, currentMonth, history, currentPrice, height = "h-8
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [gameMode, setGameMode] = useState<'menu' | 'multiplayer' | 'hedgefund'>('menu');
   const [roomId, setRoomId] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -1387,14 +1389,58 @@ export default function App() {
     );
   }
 
+  if (gameMode === 'menu') {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#e0e0e0] flex items-center justify-center p-4 font-mono">
+        <div className="max-w-4xl w-full space-y-8 text-center flex flex-col items-center">
+          <h1 className="text-4xl md:text-5xl font-black italic serif uppercase tracking-tighter text-white mb-8">Vyberte si režim</h1>
+          <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            <button 
+              onClick={() => setGameMode('multiplayer')}
+              className="flex flex-col items-start justify-start bg-[#1a1a1a] p-8 border-2 border-[#2a2b2e] hover:border-white transition-all cursor-pointer group shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] hover:shadow-[12px_12px_0px_0px_rgba(255,255,255,0.1)] hover:-translate-y-1 text-left"
+            >
+              <Users size={48} className="mb-6 text-white opacity-80" />
+              <h2 className="text-xl font-black mb-2 uppercase w-full">Stock Market</h2>
+              <span className="text-xs text-gray-500 uppercase tracking-widest mb-4 inline-block">Multiplayer Simulace</span>
+              <p className="text-sm text-gray-400 opacity-80 leading-relaxed">Připojte se do místnosti, soutěžte s přáteli na trhu a reagujte na události. Vyhrává nejlepší portfolio!</p>
+            </button>
+
+            <button 
+              onClick={() => setGameMode('hedgefund')}
+              className="flex flex-col items-start justify-start bg-[#1a1a1a] p-8 border-2 border-[#2a2b2e] hover:border-white transition-all cursor-pointer group shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] hover:shadow-[12px_12px_0px_0px_rgba(255,255,255,0.1)] hover:-translate-y-1 text-left"
+            >
+              <Briefcase size={48} className="mb-6 text-white opacity-80" />
+              <h2 className="text-xl font-black mb-2 uppercase w-full">Hedge Fund Manager</h2>
+              <span className="text-xs text-gray-500 uppercase tracking-widest mb-4 inline-block">Single Player Kampaň</span>
+              <p className="text-sm text-gray-400 opacity-80 leading-relaxed">Spravujte miliony dolarů svých klientů, rozhodujte o nákupech a prodejích každý měsíc a snažte se zhodnotit svěřené prostředky na maximum.</p>
+            </button>
+            
+          </div>
+          
+          <button 
+            onClick={() => auth.signOut()}
+            className="mt-8 text-sm opacity-50 hover:opacity-100 uppercase tracking-widest transition-opacity flex items-center gap-2"
+          >
+            <LogOut size={16} /> Odhlásit se
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameMode === 'hedgefund') {
+    return <HedgeFundManager onBack={() => setGameMode('menu')} />;
+  }
+
   if (!roomId) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-[#e0e0e0] flex items-center justify-center p-4 font-mono">
         <div className="max-w-4xl w-full space-y-8">
           <div className="flex justify-between items-center border-b-2 border-[#2a2b2e] pb-6">
             <h1 className="text-4xl font-black italic serif uppercase tracking-tighter text-white">Lobby</h1>
-            <button onClick={handleLogout} className="flex items-center gap-2 hover:underline text-sm opacity-70 hover:opacity-100">
-              <LogOut size={16} /> Odhlásit se
+            <button onClick={() => setGameMode('menu')} className="flex items-center gap-2 hover:underline text-sm opacity-70 hover:opacity-100">
+              <ArrowLeft size={16} /> Zpět do menu
             </button>
           </div>
 
@@ -1565,10 +1611,10 @@ export default function App() {
           <div className="flex items-center gap-4 w-full md:w-auto">
             <button 
               onClick={() => setShowLeaveConfirm(true)}
-              className="p-2 hover:bg-white/5 rounded-full transition-colors"
+              className="flex items-center gap-2 text-gray-400 hover:text-white uppercase tracking-widest text-sm font-bold transition-colors"
               title="Back to Lobby"
             >
-              <ArrowLeft size={24} />
+              <ArrowLeft size={16} /> Odejít do lobby
             </button>
             <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-4">
               <div>
