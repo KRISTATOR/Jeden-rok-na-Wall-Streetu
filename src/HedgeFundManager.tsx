@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, TrendingUp, TrendingDown, Users, Star, DollarSign, Activity, Play, Briefcase } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, Users, Star, DollarSign, Activity, Play, Briefcase, RefreshCw } from 'lucide-react';
 import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickSeries } from 'lightweight-charts';
+import { db } from './lib/firebase';
+import { ref, get, set } from 'firebase/database';
 
 interface Asset {
   symbol: string;
@@ -27,7 +29,8 @@ const INITIAL_ASSETS: Asset[] = [
   { symbol: 'WMT', name: 'Walmart Inc.', price: 60, history: [], candles: [], volatility: 0.04, trend: 1.00 },
 ];
 
-export default function HedgeFundManager({ onBack }: { onBack: () => void }) {
+export default function HedgeFundManager({ onBack, userId }: { onBack: () => void, userId: string }) {
+  const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(1);
   const [gameOver, setGameOver] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -49,33 +52,80 @@ export default function HedgeFundManager({ onBack }: { onBack: () => void }) {
 
   // Initialize game
   useEffect(() => {
-    let initialAssets = [...INITIAL_ASSETS];
-    
-    // Generate 12 months of back-history
-    for (let a of initialAssets) {
-      let currentPrice = a.price * 0.8; // start lower 1 year ago
-      a.candles = [];
-      const now = new Date();
-      now.setMonth(now.getMonth() - 12);
-      
-      for (let i = 0; i < 12; i++) {
-        const trend = a.trend;
-        const change = (Math.random() - 0.5) * a.volatility * 2 + (trend - 1);
-        const open = currentPrice;
-        const close = Math.max(1, open * (1 + change));
-        const high = Math.max(open, close) * (1 + Math.random() * a.volatility);
-        const low = Math.min(open, close) * (1 - Math.random() * a.volatility);
-        
-        now.setMonth(now.getMonth() + 1);
-        const timeStr = now.toISOString().split('T')[0];
-        
-        a.candles.push({ time: timeStr, open, high, low, close });
-        currentPrice = close;
+    const loadGame = async () => {
+      try {
+        const snap = await get(ref(db, `users/${userId}/hfm_state`));
+        if (snap.exists()) {
+          const data = snap.val();
+          setMonth(data.month);
+          setGameOver(data.gameOver);
+          setAssets(data.assets);
+          setPortfolio(data.portfolio || {});
+          setCash(data.cash);
+          setRating(data.rating);
+          setClientCount(data.clientCount);
+          setClientFunds(data.clientFunds);
+          setMyFunds(data.myFunds);
+          setMonthlyReport(data.monthlyReport || null);
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to load HFM state", e);
       }
-      a.price = currentPrice;
-    }
-    setAssets(initialAssets);
-  }, []);
+      
+      // If no data, or error, generate initial state
+      let initialAssets = JSON.parse(JSON.stringify(INITIAL_ASSETS));
+      
+      // Generate 12 months of back-history
+      for (let a of initialAssets) {
+        let currentPrice = a.price * 0.8; // start lower 1 year ago
+        a.candles = [];
+        const now = new Date();
+        now.setMonth(now.getMonth() - 12);
+        
+        for (let i = 0; i < 12; i++) {
+          const trend = a.trend;
+          const change = (Math.random() - 0.5) * a.volatility * 2 + (trend - 1);
+          const open = currentPrice;
+          const close = Math.max(1, open * (1 + change));
+          const high = Math.max(open, close) * (1 + Math.random() * a.volatility);
+          const low = Math.min(open, close) * (1 - Math.random() * a.volatility);
+          
+          now.setMonth(now.getMonth() + 1);
+          const timeStr = now.toISOString().split('T')[0];
+          
+          a.candles.push({ time: timeStr, open, high, low, close });
+          currentPrice = close;
+        }
+        a.price = currentPrice;
+      }
+      setAssets(initialAssets);
+      setLoading(false);
+    };
+    
+    loadGame();
+  }, [userId]);
+
+  // Auto-save game
+  useEffect(() => {
+    if (loading) return;
+    
+    const stateObj = {
+      month,
+      gameOver,
+      assets,
+      portfolio,
+      cash,
+      rating,
+      clientCount,
+      clientFunds,
+      myFunds,
+      monthlyReport
+    };
+    
+    set(ref(db, `users/${userId}/hfm_state`), stateObj).catch(e => console.error("Failed to save state", e));
+  }, [month, gameOver, assets, portfolio, cash, rating, clientCount, clientFunds, myFunds, monthlyReport, userId, loading]);
 
   // Update chart when asset is selected or changes
   useEffect(() => {
@@ -246,6 +296,58 @@ export default function HedgeFundManager({ onBack }: { onBack: () => void }) {
     setTradeAmount(0);
   };
 
+  const handleReset = async () => {
+    setLoading(true);
+    await set(ref(db, `users/${userId}/hfm_state`), null);
+    
+    let initialAssets = JSON.parse(JSON.stringify(INITIAL_ASSETS));
+    for (let a of initialAssets) {
+      let currentPrice = a.price * 0.8; 
+      a.candles = [];
+      const now = new Date();
+      now.setMonth(now.getMonth() - 12);
+      
+      for (let i = 0; i < 12; i++) {
+        const trend = a.trend;
+        const change = (Math.random() - 0.5) * a.volatility * 2 + (trend - 1);
+        const open = currentPrice;
+        const close = Math.max(1, open * (1 + change));
+        const high = Math.max(open, close) * (1 + Math.random() * a.volatility);
+        const low = Math.min(open, close) * (1 - Math.random() * a.volatility);
+        
+        now.setMonth(now.getMonth() + 1);
+        const timeStr = now.toISOString().split('T')[0];
+        
+        a.candles.push({ time: timeStr, open, high, low, close });
+        currentPrice = close;
+      }
+      a.price = currentPrice;
+    }
+    
+    setMonth(1);
+    setGameOver(false);
+    setAssets(initialAssets);
+    setPortfolio({});
+    setCash(INITIAL_FUNDS + INITIAL_CLIENT_FUNDS);
+    setRating(3);
+    setClientCount(10);
+    setClientFunds(INITIAL_CLIENT_FUNDS);
+    setMyFunds(INITIAL_FUNDS);
+    setMonthlyReport(null);
+    setLoading(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#e0e0e0] flex items-center justify-center font-mono">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw size={32} className="animate-spin text-white opacity-80" />
+          <p className="tracking-widest uppercase opacity-70">Načítání kampaně...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (gameOver) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] text-[#e0e0e0] p-8 font-mono flex items-center justify-center">
@@ -264,12 +366,20 @@ export default function HedgeFundManager({ onBack }: { onBack: () => void }) {
             </div>
           </div>
           
-          <button 
-            onClick={onBack}
-            className="w-full py-4 text-black bg-white uppercase font-black tracking-widest hover:bg-gray-200 transition-all border-2 border-white hover:border-gray-200"
-          >
-            Zpět do menu
-          </button>
+          <div className="flex flex-col gap-4">
+            <button 
+              onClick={handleReset}
+              className="w-full py-4 text-black bg-white uppercase font-black tracking-widest hover:bg-gray-200 transition-all border-2 border-white hover:border-gray-200"
+            >
+              Resetovat kampaň
+            </button>
+            <button 
+              onClick={onBack}
+              className="w-full py-4 text-gray-400 uppercase font-black tracking-widest hover:text-white transition-all border-2 border-[#2a2b2e] hover:border-white"
+            >
+              Zpět do menu
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -351,12 +461,24 @@ export default function HedgeFundManager({ onBack }: { onBack: () => void }) {
              </div>
           </div>
           
-          <button 
-            onClick={handleNextMonth}
-            className="w-full bg-white text-black font-black uppercase tracking-widest py-4 border-2 border-white hover:bg-gray-200 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
-          >
-            <Play size={16}/> Další Měsíc
-          </button>
+          <div className="flex flex-col gap-2">
+            <button 
+              onClick={handleNextMonth}
+              className="w-full bg-white text-black font-black uppercase tracking-widest py-4 border-2 border-white hover:bg-gray-200 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+            >
+              <Play size={16}/> Další Měsíc
+            </button>
+            <button 
+              onClick={() => {
+                if(window.confirm('Opravdu chcete zrušit progres a začít znovu?')) {
+                  handleReset();
+                }
+              }}
+              className="w-full text-xs text-gray-500 hover:text-red-400 font-bold uppercase tracking-widest py-2 transition-colors flex items-center justify-center gap-2"
+            >
+              <RefreshCw size={12}/> Reset Kampaň
+            </button>
+          </div>
         </div>
 
         {/* Main Content: Trading */}

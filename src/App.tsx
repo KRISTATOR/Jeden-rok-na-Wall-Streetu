@@ -1430,7 +1430,7 @@ export default function App() {
   }
 
   if (gameMode === 'hedgefund') {
-    return <HedgeFundManager onBack={() => setGameMode('menu')} />;
+    return <HedgeFundManager onBack={() => setGameMode('menu')} userId={user.uid} />;
   }
 
   if (!roomId) {
