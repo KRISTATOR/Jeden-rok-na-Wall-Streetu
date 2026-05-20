@@ -23,11 +23,31 @@ const INITIAL_FUNDS = 10000000; // 10 million your money
 const INITIAL_CLIENT_FUNDS = 40000000; // 40 million client money
 const TOTAL_MONTHS = 36; // 3 years
 
-const INITIAL_ASSETS: Asset[] = [
-  { symbol: 'AAPL', name: 'Apple Inc.', price: 150, history: [], candles: [], volatility: 0.08, trend: 1.02 },
-  { symbol: 'NVDA', name: 'Nvidia Corp.', price: 120, history: [], candles: [], volatility: 0.15, trend: 1.05 },
-  { symbol: 'WMT', name: 'Walmart Inc.', price: 60, history: [], candles: [], volatility: 0.04, trend: 1.00 },
+const ALL_AVAILABLE_ASSETS: Omit<Asset, 'history' | 'candles'>[] = [
+  { symbol: 'AAPL', name: 'Apple Inc.', price: 150, volatility: 0.08, trend: 1.02 },
+  { symbol: 'NVDA', name: 'Nvidia Corp.', price: 120, volatility: 0.15, trend: 1.05 },
+  { symbol: 'MSFT', name: 'Microsoft Corp.', price: 250, volatility: 0.07, trend: 1.02 },
+  { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 130, volatility: 0.09, trend: 1.02 },
+  { symbol: 'AMZN', name: 'Amazon.com Inc.', price: 100, volatility: 0.10, trend: 1.01 },
+  { symbol: 'TSLA', name: 'Tesla Inc.', price: 200, volatility: 0.18, trend: 1.03 },
+  { symbol: 'META', name: 'Meta Platforms Inc.', price: 180, volatility: 0.12, trend: 1.01 },
+  { symbol: 'WMT', name: 'Walmart Inc.', price: 60, volatility: 0.04, trend: 1.00 },
+  { symbol: 'JPM', name: 'JPMorgan Chase & Co.', price: 140, volatility: 0.05, trend: 1.00 },
+  { symbol: 'V', name: 'Visa Inc.', price: 200, volatility: 0.06, trend: 1.01 },
+  { symbol: 'PG', name: 'Procter & Gamble Co.', price: 150, volatility: 0.04, trend: 1.00 },
+  { symbol: 'JNJ', name: 'Johnson & Johnson', price: 160, volatility: 0.03, trend: 1.00 },
+  { symbol: 'XOM', name: 'Exxon Mobil Corp.', price: 110, volatility: 0.08, trend: 1.01 },
+  { symbol: 'BAC', name: 'Bank of America Corp.', price: 30, volatility: 0.06, trend: 1.00 },
+  { symbol: 'MA', name: 'Mastercard Inc.', price: 350, volatility: 0.06, trend: 1.01 },
+  { symbol: 'HD', name: 'The Home Depot Inc.', price: 300, volatility: 0.07, trend: 1.01 },
+  { symbol: 'CVX', name: 'Chevron Corp.', price: 150, volatility: 0.08, trend: 1.01 },
+  { symbol: 'ABBV', name: 'AbbVie Inc.', price: 140, volatility: 0.06, trend: 1.00 },
+  { symbol: 'LLY', name: 'Eli Lilly and Co.', price: 300, volatility: 0.09, trend: 1.02 },
+  { symbol: 'PEP', name: 'PepsiCo Inc.', price: 180, volatility: 0.04, trend: 1.00 },
 ];
+
+const INITIAL_ASSETS: Asset[] = [];
+
 
 export default function HedgeFundManager({ onBack, userId }: { onBack: () => void, userId: string }) {
   const [loading, setLoading] = useState(true);
@@ -46,9 +66,44 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
   const [tradeAmount, setTradeAmount] = useState<number>(0);
   const [monthlyReport, setMonthlyReport] = useState<{ profit: number; clientChange: number; ratingChange: number; totalAUM: number } | null>(null);
 
+  const [showAssetSelector, setShowAssetSelector] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+
+  const handleAddAsset = (tmpl: Omit<Asset, 'history' | 'candles'>) => {
+    if (assets.length >= 10) return;
+    if (assets.some(a => a.symbol === tmpl.symbol)) return;
+
+    let newAsset: Asset = { ...tmpl, history: [], candles: [] };
+    let currentPrice = newAsset.price * 0.8;
+    const now = new Date();
+    // Use `month` offset if not starting from month 1, but approximate history is OK
+    now.setMonth(now.getMonth() - 12);
+    
+    for (let i = 0; i < 12; i++) {
+        const trend = newAsset.trend;
+        const change = (Math.random() - 0.5) * newAsset.volatility * 2 + (trend - 1);
+        const open = currentPrice;
+        const close = Math.max(1, open * (1 + change));
+        const high = Math.max(open, close) * (1 + Math.random() * newAsset.volatility);
+        const low = Math.min(open, close) * (1 - Math.random() * newAsset.volatility);
+        
+        now.setMonth(now.getMonth() + 1);
+        const timeStr = now.toISOString().split('T')[0];
+        
+        newAsset.candles.push({ time: timeStr, open, high, low, close });
+        currentPrice = close;
+    }
+    newAsset.price = currentPrice;
+
+    setAssets([...assets, newAsset]);
+    setSelectedAsset(newAsset.symbol);
+    setShowAssetSelector(false);
+    setSearchQuery('');
+  };
 
   // Initialize game
   useEffect(() => {
@@ -393,9 +448,10 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
           <button onClick={onBack} className="text-gray-400 hover:text-white flex items-center gap-2 uppercase tracking-widest text-sm font-bold transition-colors">
             <ArrowLeft size={16} /> Odejít do menu
           </button>
-          <div className="text-center font-black font-serif italic text-2xl uppercase tracking-tighter text-white">
-            <Briefcase size={20} className="inline mr-2 -mt-1 text-white"/> 
+          <div className="text-center font-black font-serif italic text-2xl uppercase tracking-tighter text-white flex justify-center items-center gap-3">
+            <Briefcase size={20} className="inline -mt-1 text-white"/> 
             Hedge Fund Manager
+            <span className="bg-yellow-500 text-black text-[10px] font-black px-2 py-1 rounded-sm not-italic tracking-widest relative -top-2">BETA</span>
           </div>
           <div className="text-right">
             <div className="text-[10px] opacity-70 uppercase font-bold tracking-widest text-gray-400">Měsíc</div>
@@ -483,29 +539,112 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
 
         {/* Main Content: Trading */}
         <div className="lg:col-span-3 space-y-6">
-          <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+          <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar border-b-2 border-[#1a1a1a]">
             {assets.map(a => (
               <button
                 key={a.symbol}
                 onClick={() => setSelectedAsset(a.symbol)}
-                className={`px-6 py-3 border-2 ${selectedAsset === a.symbol ? 'border-white bg-[#1a1a1a] text-white shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]' : 'border-[#2a2b2e] bg-[#0a0a0a] text-gray-500 hover:border-gray-500'} flex flex-col items-center min-w-[120px] transition-all font-mono`}
+                className={`px-6 py-3 border-2 ${selectedAsset === a.symbol ? 'border-white bg-[#1a1a1a] text-white shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)]' : 'border-[#2a2b2e] bg-[#0a0a0a] text-gray-500 hover:border-gray-500'} flex flex-col items-center min-w-[120px] transition-all font-mono shrink-0`}
               >
                 <div className="font-black text-lg uppercase tracking-wider">{a.symbol}</div>
                 <div className="text-xs font-bold opacity-80">${a.price.toFixed(2)}</div>
               </button>
             ))}
+            {assets.length < 10 && (
+              <button 
+                onClick={() => setShowAssetSelector(true)}
+                className="px-6 py-3 border-2 border-dashed border-[#2a2b2e] bg-transparent text-gray-500 hover:text-white hover:border-white flex flex-col items-center justify-center min-w-[120px] transition-all font-mono shrink-0"
+              >
+                <span className="font-black text-2xl leading-none">+</span>
+                <span className="text-[10px] uppercase tracking-widest font-bold mt-1">Přidat Akcii</span>
+              </button>
+            )}
           </div>
+          
+          {showAssetSelector && (
+            <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] mb-6 animate-in slide-in-from-top-4 fade-in">
+              <div className="flex justify-between items-center mb-4">
+                 <h3 className="text-lg font-black uppercase tracking-widest text-white">Přidat aktivum do portfolia ({assets.length}/10)</h3>
+                 <button onClick={() => setShowAssetSelector(false)} className="text-gray-500 hover:text-white text-sm font-bold uppercase tracking-widest">
+                   Zavřít
+                 </button>
+              </div>
+              <input 
+                type="text" 
+                placeholder="Hledat akciový symbol (např. TSLA, MSFT)..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full bg-[#0a0a0a] border-2 border-[#2a2b2e] p-4 text-white font-bold tracking-wider outline-none focus:border-white mb-4 placeholder-gray-700"
+              />
+              <div className="max-h-60 overflow-y-auto custom-scrollbar flex flex-col gap-2">
+                {ALL_AVAILABLE_ASSETS.filter(a => !assets.some(existing => existing.symbol === a.symbol) && (a.symbol.toLowerCase().includes(searchQuery.toLowerCase()) || a.name.toLowerCase().includes(searchQuery.toLowerCase()))).slice(0, 10).map(asset => (
+                  <button 
+                    key={asset.symbol}
+                    onClick={() => handleAddAsset(asset)}
+                    className="flex justify-between items-center p-3 border-2 border-[#2a2b2e] hover:border-white bg-[#0a0a0a] text-left transition-colors"
+                  >
+                     <div>
+                       <div className="font-black text-lg text-white">{asset.symbol}</div>
+                       <div className="text-xs text-gray-500 font-bold">{asset.name}</div>
+                     </div>
+                     <div className="text-right">
+                       <span className="text-sm font-bold opacity-80">${asset.price.toFixed(2)}</span>
+                       <div className="text-[10px] uppercase font-bold text-gray-600 mt-1">Přidat +</div>
+                     </div>
+                  </button>
+                ))}
+                {searchQuery && !ALL_AVAILABLE_ASSETS.some(a => a.symbol.toLowerCase() === searchQuery.toLowerCase()) && (
+                  <button 
+                    onClick={() => handleAddAsset({ symbol: searchQuery.toUpperCase().substring(0, 5), name: `${searchQuery.toUpperCase()} Corp`, price: 10 + Math.random() * 200, volatility: 0.1, trend: 1.01 })}
+                    className="flex justify-between items-center p-3 border-2 border-dashed border-[#2a2b2e] hover:border-white bg-[#0a0a0a] text-left transition-colors"
+                  >
+                     <div>
+                       <div className="font-black text-lg text-white">{searchQuery.toUpperCase().substring(0, 5)}</div>
+                       <div className="text-xs text-gray-500 font-bold">Mock Asset / Neznámý ticker</div>
+                     </div>
+                     <div className="text-right">
+                       <div className="text-[10px] uppercase font-bold text-gray-600 mt-1">Simulovat +</div>
+                     </div>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
-          <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 h-[400px] shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] flex flex-col">
-             {/* Chart container */}
-             <div className="flex justify-between items-center mb-4">
-               <div>
-                 <h2 className="font-black text-xl">{currentAsset?.name} <span className="opacity-50">({currentAsset?.symbol})</span></h2>
-                 <div className="text-[10px] text-gray-500 tracking-widest uppercase mt-1 font-bold">TradingView API live charts</div>
+          {currentAsset ? (
+            <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 h-[400px] shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] flex flex-col">
+               {/* Chart container */}
+               <div className="flex justify-between items-start mb-4">
+                 <div>
+                   <h2 className="font-black text-xl">{currentAsset.name} <span className="opacity-50">({currentAsset.symbol})</span></h2>
+                   <div className="text-[10px] text-gray-500 tracking-widest uppercase mt-1 font-bold">TradingView API live charts</div>
+                 </div>
+                 {(!portfolio[currentAsset.symbol] || portfolio[currentAsset.symbol].shares === 0) && (
+                   <button 
+                     onClick={() => {
+                       const newAssets = assets.filter(a => a.symbol !== currentAsset.symbol);
+                       setAssets(newAssets);
+                       if (newAssets.length > 0) {
+                         setSelectedAsset(newAssets[0].symbol);
+                       } else {
+                         setSelectedAsset('');
+                       }
+                     }}
+                     className="text-xs text-red-500 hover:text-red-400 font-bold uppercase tracking-widest transition-colors border border-red-900 bg-red-950/30 px-3 py-1 rounded-sm"
+                   >
+                     Odstranit
+                   </button>
+                 )}
                </div>
-             </div>
-             <div ref={chartContainerRef} className="w-full flex-1" />
-          </div>
+               <div ref={chartContainerRef} className="w-full flex-1" />
+            </div>
+          ) : (
+            <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 h-[400px] shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] flex flex-col items-center justify-center text-center">
+              <Activity size={48} className="text-[#2a2b2e] mb-4" />
+              <h2 className="font-black text-xl text-gray-500">Žádná aktiva ke zobrazení</h2>
+              <p className="text-sm font-bold opacity-50 max-w-sm mt-2">Přidejte akciové tituly pro sledování grafů a obchodování.</p>
+            </div>
+          )}
 
           {currentAsset && (
             <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 flex flex-col sm:flex-row items-end gap-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
