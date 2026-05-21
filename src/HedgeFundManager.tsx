@@ -93,6 +93,57 @@ const ALL_AVAILABLE_ASSETS: Omit<Asset, 'history' | 'candles'>[] = [
   { symbol: 'PEP', name: 'PepsiCo Inc.', price: 180, volatility: 0.04, trend: 1.00 },
 ];
 
+interface NewsEvent {
+  id: string;
+  text: string;
+  symbol: string | null;
+  impact: number;
+}
+
+const NEWS_TEMPLATES = [
+  { text: "Inflace v USA překvapivě klesla, investoři slaví.", impact: 0.05, symbol: null },
+  { text: "Zvýšení úrokových sazeb FEDem zchladilo trhy.", impact: -0.05, symbol: null },
+  { text: "{SYMBOL} oznamuje rekordní zisky za poslední kvartál!", impact: 0.15, symbol: 'specific' },
+  { text: "{SYMBOL} čelí obří žalobě kvůli úniku dat, akcie se propadají.", impact: -0.15, symbol: 'specific' },
+  { text: "Nový produkt od {SYMBOL} zcela propadl u recenzentů.", impact: -0.08, symbol: 'specific' },
+  { text: "Analytici z Wall Street zvedají cílovou cenu pro {SYMBOL}.", impact: 0.06, symbol: 'specific' },
+  { text: "CEO společnosti {SYMBOL} rezignoval kvůli skandálu.", impact: -0.12, symbol: 'specific' },
+  { text: "Hrozba globální pandemie děsí investory, trhy klesají.", impact: -0.10, symbol: null },
+  { text: "{SYMBOL} kupuje nadějný startup za miliardy dolarů.", impact: 0.08, symbol: 'specific' },
+  { text: "Napětí na blízkém východě hýbe trhy. Nejistota roste.", impact: -0.06, symbol: null },
+  { text: "Vláda ohlašuje obří dotace pro sektor technologií.", impact: 0.08, symbol: null },
+  { text: "Výroba u {SYMBOL} se zadrhává kvůli nedostatku čipů.", impact: -0.07, symbol: 'specific' },
+];
+
+const generateNews = (currentAssets: Asset[]): NewsEvent[] => {
+  const count = Math.random() > 0.5 ? 2 : 1;
+  const events: NewsEvent[] = [];
+  const shuffledTemplates = [...NEWS_TEMPLATES].sort(() => 0.5 - Math.random());
+  
+  for (let i = 0; i < count; i++) {
+    const tmpl = shuffledTemplates[i];
+    let symbol = null;
+    let text = tmpl.text;
+    
+    if (tmpl.symbol === 'specific' && currentAssets.length > 0) {
+      const asset = currentAssets[Math.floor(Math.random() * currentAssets.length)];
+      symbol = asset.symbol;
+      text = text.replace('{SYMBOL}', symbol);
+    } else if (tmpl.symbol === 'specific') {
+      // no assets to match
+      continue;
+    }
+    
+    events.push({
+      id: Math.random().toString(36).substring(2, 9),
+      text,
+      symbol,
+      impact: tmpl.impact
+    });
+  }
+  return events;
+};
+
 const INITIAL_ASSETS: Asset[] = [];
 
 
@@ -101,6 +152,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
   const [month, setMonth] = useState(1);
   const [gameOver, setGameOver] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [currentNews, setCurrentNews] = useState<NewsEvent[]>([]);
   const [portfolio, setPortfolio] = useState<Record<string, { shares: number }>>({});
   const [cash, setCash] = useState(INITIAL_FUNDS + INITIAL_CLIENT_FUNDS);
   
@@ -164,6 +216,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
           setMonth(data.month);
           setGameOver(data.gameOver);
           setAssets(data.assets || []);
+          setCurrentNews(data.currentNews || []);
           setPortfolio(data.portfolio || {});
           setCash(data.cash);
           setRating(data.rating);
@@ -204,6 +257,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
         a.price = currentPrice;
       }
       setAssets(initialAssets);
+      setCurrentNews(generateNews(initialAssets));
       setClients(generateInitialClients(INITIAL_CLIENT_FUNDS));
       setLoading(false);
     };
@@ -219,6 +273,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
       month,
       gameOver,
       assets,
+      currentNews,
       portfolio,
       cash,
       rating,
@@ -228,7 +283,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
     };
     
     set(ref(db, `users/${userId}/hfm_state`), stateObj).catch(e => console.error("Failed to save state", e));
-  }, [month, gameOver, assets, portfolio, cash, rating, clients, myFunds, monthlyReport, userId, loading]);
+  }, [month, gameOver, assets, currentNews, portfolio, cash, rating, clients, myFunds, monthlyReport, userId, loading]);
 
   // Update chart when asset is selected or changes
   useEffect(() => {
@@ -285,7 +340,14 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
     
     // Evolve prices
     const newAssets = assets.map(a => {
-      const change = (Math.random() - 0.5) * a.volatility * 2 + (a.trend - 1);
+      let newsImpact = 0;
+      currentNews.forEach(n => {
+        if (!n.symbol || n.symbol === a.symbol) {
+          newsImpact += n.impact;
+        }
+      });
+      
+      const change = (Math.random() - 0.5) * a.volatility * 2 + (a.trend - 1) + newsImpact;
       const open = a.price;
       const close = Math.max(1, open * (1 + change));
       const high = Math.max(open, close) * (1 + Math.random() * a.volatility);
@@ -303,6 +365,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
     });
 
     setAssets(newAssets);
+    setCurrentNews(generateNews(newAssets));
     
     // Calculate new total value with new prices
     const newPortfolioValue = Object.entries(portfolio).reduce((acc, [sym, data]) => {
@@ -479,6 +542,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
     setMonth(1);
     setGameOver(false);
     setAssets(initialAssets);
+    setCurrentNews(generateNews(initialAssets));
     setPortfolio({});
     setClients(generateInitialClients(INITIAL_CLIENT_FUNDS));
     setCash(INITIAL_FUNDS + INITIAL_CLIENT_FUNDS);
@@ -635,6 +699,26 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
 
         {/* Main Content: Trading */}
         <div className="lg:col-span-3 space-y-6">
+          <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)]">
+             <h3 className="text-[10px] uppercase opacity-70 mb-4 font-bold tracking-widest text-gray-400">Zprávy z trhu pro aktuální měsíc</h3>
+             {currentNews.length === 0 ? (
+               <div className="text-sm font-bold opacity-50">Žádné významné události...</div>
+             ) : (
+               <div className="flex flex-col gap-3">
+                 {currentNews.map(n => (
+                   <div key={n.id} className="flex gap-4 items-start bg-[#0a0a0a] border-2 border-[#2a2b2e] p-3">
+                     <div className={`mt-1 flex-shrink-0 ${n.impact > 0 ? 'text-green-500' : n.impact < 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                       {n.impact > 0 ? <TrendingUp size={16} /> : n.impact < 0 ? <TrendingDown size={16} /> : <Activity size={16} />}
+                     </div>
+                     <div className="text-sm font-bold">
+                       {n.text}
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             )}
+          </div>
+
           <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar border-b-2 border-[#1a1a1a]">
             {assets.map(a => (
               <button
