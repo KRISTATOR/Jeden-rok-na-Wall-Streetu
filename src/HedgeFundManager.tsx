@@ -19,6 +19,53 @@ interface PortfolioItem {
   avgPrice: number;
 }
 
+interface FundClient {
+  id: string;
+  name: string;
+  funds: number;
+  type: 'Konzervativní' | 'Vyvážený' | 'Agresivní' | 'Velryba';
+  happiness: number; // 0-100
+  monthsWithFund: number;
+}
+
+const FIRST_NAMES = ['James', 'Mary', 'Robert', 'Patricia', 'John', 'Jennifer', 'Michael', 'Linda', 'David', 'Elizabeth', 'William', 'Barbara', 'Richard', 'Susan', 'Joseph', 'Jessica'];
+const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas'];
+
+const generateClient = (): FundClient => {
+  const typeRand = Math.random();
+  let type: FundClient['type'] = 'Vyvážený';
+  let funds = 100000 + Math.random() * 900000; // 100k - 1M
+  
+  if (typeRand > 0.9) {
+    type = 'Velryba';
+    funds = 5000000 + Math.random() * 15000000; // 5M - 20M
+  } else if (typeRand > 0.6) {
+    type = 'Agresivní';
+  } else if (typeRand > 0.3) {
+    type = 'Konzervativní';
+  }
+
+  return {
+    id: Math.random().toString(36).substring(2, 9),
+    name: `${FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]} ${LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)]}`,
+    funds,
+    type,
+    happiness: 50 + Math.random() * 30, // 50 - 80
+    monthsWithFund: 0
+  };
+};
+
+const generateInitialClients = (targetTotal: number): FundClient[] => {
+  const clients: FundClient[] = [];
+  let currentTotal = 0;
+  while (currentTotal < targetTotal) {
+    const c = generateClient();
+    clients.push(c);
+    currentTotal += c.funds;
+  }
+  return clients;
+};
+
 const INITIAL_FUNDS = 10000000; // 10 million your money
 const INITIAL_CLIENT_FUNDS = 40000000; // 40 million client money
 const TOTAL_MONTHS = 36; // 3 years
@@ -58,15 +105,17 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
   const [cash, setCash] = useState(INITIAL_FUNDS + INITIAL_CLIENT_FUNDS);
   
   const [rating, setRating] = useState(3); // 1 to 5 stars
-  const [clientCount, setClientCount] = useState(10);
-  const [clientFunds, setClientFunds] = useState(INITIAL_CLIENT_FUNDS);
+  const [clients, setClients] = useState<FundClient[]>([]);
   const [myFunds, setMyFunds] = useState(INITIAL_FUNDS);
+  
+  const clientFunds = clients.reduce((acc, c) => acc + c.funds, 0);
   
   const [selectedAsset, setSelectedAsset] = useState<string>('AAPL');
   const [tradeAmount, setTradeAmount] = useState<number>(0);
   const [monthlyReport, setMonthlyReport] = useState<{ profit: number; clientChange: number; ratingChange: number; totalAUM: number } | null>(null);
 
   const [showAssetSelector, setShowAssetSelector] = useState(false);
+  const [showClientsMenu, setShowClientsMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -118,8 +167,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
           setPortfolio(data.portfolio || {});
           setCash(data.cash);
           setRating(data.rating);
-          setClientCount(data.clientCount);
-          setClientFunds(data.clientFunds);
+          setClients(data.clients || generateInitialClients(INITIAL_CLIENT_FUNDS));
           setMyFunds(data.myFunds);
           setMonthlyReport(data.monthlyReport || null);
           setLoading(false);
@@ -156,6 +204,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
         a.price = currentPrice;
       }
       setAssets(initialAssets);
+      setClients(generateInitialClients(INITIAL_CLIENT_FUNDS));
       setLoading(false);
     };
     
@@ -173,14 +222,13 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
       portfolio,
       cash,
       rating,
-      clientCount,
-      clientFunds,
+      clients,
       myFunds,
       monthlyReport
     };
     
     set(ref(db, `users/${userId}/hfm_state`), stateObj).catch(e => console.error("Failed to save state", e));
-  }, [month, gameOver, assets, portfolio, cash, rating, clientCount, clientFunds, myFunds, monthlyReport, userId, loading]);
+  }, [month, gameOver, assets, portfolio, cash, rating, clients, myFunds, monthlyReport, userId, loading]);
 
   // Update chart when asset is selected or changes
   useEffect(() => {
@@ -268,14 +316,51 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
 
     // Hedge fund logic:
     // Take 2% management fee annually (0.16% monthly) + 20% of profit if positive
-    const mgmtFee = newAUM * 0.0016;
-    const perfFee = profit > 0 ? profit * 0.20 : 0;
+    // Apply to individual clients
     
-    const myProfit = mgmtFee + perfFee;
-    const clientProfit = profit - myProfit;
-
-    let nextMyFunds = myFunds + myProfit;
-    let nextClientFunds = clientFunds + clientProfit;
+    let totalManagementFee = 0;
+    
+    let activeClients = clients.map(c => {
+      const cRatio = c.funds / prevAUM;
+      const cProfitRaw = profit * cRatio;
+      
+      const mgmtFee = c.funds * 0.0016; // monthly management fee
+      const perfFee = cProfitRaw > 0 ? cProfitRaw * 0.20 : 0;
+      const totalFees = mgmtFee + perfFee;
+      
+      totalManagementFee += totalFees;
+      
+      const actualProfit = cProfitRaw - totalFees;
+      
+      // Update happiness based on return %
+      const returnPct = cProfitRaw / c.funds;
+      let targetHappiness = c.happiness;
+      
+      if (c.type === 'Konzervativní') {
+          if (returnPct > 0.02) targetHappiness += 5;
+          else if (returnPct > 0) targetHappiness += 2;
+          else if (returnPct < -0.02) targetHappiness -= 15; // Hate losses
+          else if (returnPct < 0) targetHappiness -= 5;
+      } else if (c.type === 'Agresivní' || c.type === 'Velryba') {
+          if (returnPct > 0.10) targetHappiness += 15;
+          else if (returnPct > 0.05) targetHappiness += 5;
+          else if (returnPct < -0.10) targetHappiness -= 5; // More tolerant to big losses
+          else if (returnPct < 0) targetHappiness -= 2;
+          else targetHappiness -= 5; // Unhappy if profit is small!
+      } else { // Vyvážený
+          if (returnPct > 0.05) targetHappiness += 10;
+          else if (returnPct > 0) targetHappiness += 2;
+          else if (returnPct < -0.05) targetHappiness -= 15;
+          else if (returnPct < 0) targetHappiness -= 5;
+      }
+      
+      return {
+        ...c,
+        funds: c.funds + actualProfit,
+        monthsWithFund: c.monthsWithFund + 1,
+        happiness: Math.max(0, Math.min(100, targetHappiness))
+      };
+    });
 
     // Rating changes based on ROI
     let newRating = rating;
@@ -284,31 +369,43 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
     else if (roi < -0.05) newRating = Math.max(1, Number((rating - 0.5).toFixed(1)));
     else if (roi < -0.01) newRating = Math.max(1, Number((rating - 0.2).toFixed(1)));
 
-    // Clients joining/leaving based on rating & performance
+    // Clients joining/leaving based on happiness and rating
     let clientFlow = 0;
-    let newClientCount = clientCount;
-    if (newRating >= 4) {
-      const joins = Math.floor(Math.random() * 3) + 1;
-      newClientCount += joins;
-      clientFlow = joins * 5000000; // each brings 5M
-    } else if (newRating <= 2) {
-      const leaves = Math.floor(Math.random() * 2) + 1;
-      const actualLeaves = Math.min(newClientCount, leaves);
-      newClientCount -= actualLeaves;
-      clientFlow = -(actualLeaves * (nextClientFunds / Math.max(1, clientCount))); // they take their share
+    
+    // Unhappy clients leave
+    const remainingClients = activeClients.filter(c => {
+       if (c.happiness < 20 && Math.random() < 0.7) {
+           clientFlow -= c.funds; // money leaves
+           return false;
+       }
+       return true;
+    });
+    
+    // New clients join based on rating
+    if (newRating >= 4 && Math.random() < 0.6) {
+       const joins = Math.floor(Math.random() * 2) + 1;
+       for (let i = 0; i < joins; i++) {
+           const newC = generateClient();
+           remainingClients.push(newC);
+           clientFlow += newC.funds;
+       }
+    } else if (newRating >= 3 && Math.random() < 0.3) {
+       const newC = generateClient();
+       remainingClients.push(newC);
+       clientFlow += newC.funds;
     }
 
-    nextClientFunds += clientFlow;
+    // My funds
+    const myRatio = myFunds / prevAUM;
+    const myProfitRaw = profit * myRatio;
+    let nextMyFunds = myFunds + myProfitRaw + totalManagementFee;
     
-    // To handle cash flow, we need to add/remove cash. If we don't have enough cash, we might be forced to liquidate!
-    // But for simplicity, we just adjust cash. If cash goes negative, warning.
     let nextCash = cash + clientFlow;
     let liquidationWarning = false;
     // (In a fuller version, forced liquidation should happen. Here we just allow negative cash momentarily and warn)
 
     setMyFunds(nextMyFunds);
-    setClientFunds(nextClientFunds);
-    setClientCount(newClientCount);
+    setClients(remainingClients);
     setRating(newRating);
     setCash(nextCash);
     
@@ -383,10 +480,9 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
     setGameOver(false);
     setAssets(initialAssets);
     setPortfolio({});
+    setClients(generateInitialClients(INITIAL_CLIENT_FUNDS));
     setCash(INITIAL_FUNDS + INITIAL_CLIENT_FUNDS);
     setRating(3);
-    setClientCount(10);
-    setClientFunds(INITIAL_CLIENT_FUNDS);
     setMyFunds(INITIAL_FUNDS);
     setMonthlyReport(null);
     setLoading(false);
@@ -469,7 +565,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
              <div className="mt-2 text-xs font-bold opacity-70">Cash: ${(cash / 1000000).toFixed(2)}M</div>
           </div>
 
-          <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] flex justify-between items-center">
+          <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] p-6 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.05)] flex justify-between items-center cursor-pointer hover:border-white transition-colors" onClick={() => setShowClientsMenu(true)}>
              <div>
                <h3 className="text-[10px] uppercase opacity-70 mb-1 font-bold tracking-widest text-gray-400">Reputace fondu</h3>
                <div className="flex items-center gap-1 text-yellow-500">
@@ -481,7 +577,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
              </div>
              <div className="text-right">
                <h3 className="text-[10px] uppercase opacity-50 mb-1">Klienti</h3>
-               <div className="text-xl font-bold flex items-center justify-end gap-2"><Users size={16}/> {clientCount}</div>
+               <div className="text-xl font-bold flex items-center justify-end gap-2"><Users size={16}/> {clients.length}</div>
              </div>
           </div>
 
@@ -688,6 +784,65 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
 
       </div>
       </div>
+
+      {showClientsMenu && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#1a1a1a] border-2 border-[#2a2b2e] w-full max-w-4xl max-h-[85vh] flex flex-col shadow-[16px_16px_0px_0px_rgba(255,255,255,0.05)]">
+            <div className="flex justify-between items-center p-6 border-b-2 border-[#2a2b2e]">
+              <div>
+                <h2 className="text-2xl font-black italic serif uppercase tracking-tighter text-white">Správa Klientů</h2>
+                <div className="text-xs uppercase font-bold tracking-widest opacity-70 mt-1">
+                  Celkem: {clients.length} / Spravovaný kapitál: ${(clientFunds / 1000000).toFixed(2)}M
+                </div>
+              </div>
+              <button onClick={() => setShowClientsMenu(false)} className="text-gray-500 hover:text-white font-bold uppercase tracking-widest text-sm transition-colors border-2 border-transparent hover:border-white p-2">
+                Zavřít
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+              <div className="mb-6 p-4 border-2 border-[#2a2b2e] bg-[#0a0a0a] text-sm opacity-80 leading-relaxed font-bold">
+                * Konvezrativní klienti nesnáší ztráty, ale nepotřebují velké zisky.<br/>
+                * Agresivní klienti a Velryby naopat vyžadují vysoké měsíční zhodnocení, jinak je ani malý zisk nepotěší, ale jsou tolerantnější k propadům.
+              </div>
+              {clients.length === 0 ? (
+                <div className="text-center py-12 opacity-50">
+                  <Users size={48} className="mx-auto mb-4" />
+                  <p className="font-bold tracking-widest uppercase">Žádní klienti</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {clients.map(c => (
+                    <div key={c.id} className="border-2 border-[#2a2b2e] bg-[#0a0a0a] p-4 flex flex-col gap-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-black text-lg text-white">{c.name}</div>
+                          <div className="text-[10px] font-bold uppercase tracking-widest opacity-70 text-yellow-500">{c.type}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-green-400">${(c.funds / 1000000).toFixed(2)}M</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest opacity-80 pt-2 border-t border-[#2a2b2e]">
+                        <div className="flex-1">
+                          <div className="mb-1">Spokojenost: {Math.round(c.happiness)}%</div>
+                          <div className="w-full h-1 bg-[#2a2b2e]">
+                            <div className={`h-full ${c.happiness > 70 ? 'bg-green-500' : c.happiness > 30 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${c.happiness}%` }}></div>
+                          </div>
+                        </div>
+                        <div>
+                          Měsíců: {c.monthsWithFund}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
