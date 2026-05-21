@@ -114,7 +114,7 @@ export default function HedgeFundManager({ onBack, userId }: { onBack: () => voi
           const data = snap.val();
           setMonth(data.month);
           setGameOver(data.gameOver);
-          setAssets(data.assets);
+          setAssets(data.assets || []);
           setPortfolio(data.portfolio || {});
           setCash(data.cash);
           setRating(data.rating);
